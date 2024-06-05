@@ -118,27 +118,39 @@ namespace SecureWss.Websockets
                     var req = e.Request;
                     var res = e.Response;
 
-                    var path = req.RawUrl;
+                    res.Headers.Add("Access-Control-Allow-Origin", "*");
+                    res.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                    res.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-                    if (path == "/")
-                        path += "index.html";
+                    var reqPath = req.RawUrl;
 
-                    var localPath = Path.Combine(rootPath, path.Substring(1));
+                    if (reqPath == "/")
+                        reqPath += "index.html";
+
+                    string localPath = Path.Combine(rootPath, reqPath.Substring(1));
+
+                    // Invoke event handler
+                    //RequestReceived.Invoke(this, localPath);
 
                     byte[] contents;
                     if (File.Exists(localPath))
+                    {
                         contents = File.ReadAllBytes(localPath);
+                    }
                     else
                     {
                         e.Response.StatusCode = 404;
                         contents = Encoding.UTF8.GetBytes("Path not found " + e.Request.RawUrl);
                     }
 
-                    var extention = Path.GetExtension(path);
-                    if (!_contentTypes.TryGetValue(extention, out var contentType))
+                    var extension = Path.GetExtension(reqPath).Replace(".", "");
+                    if (!_contentTypes.TryGetValue(extension, out var contentType))
+                    {
                         contentType = "text/html";
+                    }
 
                     res.ContentLength64 = contents.LongLength;
+                    res.ContentType = contentType;
 
                     res.Close(contents, true);
                 };
