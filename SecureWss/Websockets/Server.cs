@@ -15,6 +15,11 @@ namespace SecureWss.Websockets
 {
     internal class Server
     {
+        private int Port { get; set; }
+        private string CertPath { get; set; }
+        private string CertPassword { get; set; }
+        private string RootPath { get; set; }
+
         private HttpServer _httpsServer;
         private static Dictionary<string, string> _contentTypes = new Dictionary<string, string>
         {
@@ -74,6 +79,21 @@ namespace SecureWss.Websockets
             { "ico", "image/vnd.microsoft.icon" }
         };
         public bool IsRunning { get => _httpsServer?.IsListening ?? false; }//_wsServer?.IsListening ?? false; }
+
+        // Constructor
+        public Server(int port, string certPath = "", string certPassword = "", string rootPath = @"\html")
+        {
+            this.Port = port;
+            this.CertPath = certPath;
+            this.CertPassword = certPassword;
+            this.RootPath = rootPath;
+        }
+
+        public void Restart()
+        {
+            this.Stop();
+            this.Start(this.Port, this.CertPath, this.CertPassword, this.RootPath);
+        }
 
         public void Start(int port, string certPath = "", string certPassword = "", string rootPath = @"\html")
         {
@@ -166,9 +186,11 @@ namespace SecureWss.Websockets
 
         public void Stop()
         {
+            Debug.Print(DebugLevel.Debug, "Stopping web server...");
             _httpsServer?.Stop();
 
             _httpsServer = null;
+            Debug.Print(DebugLevel.Debug, "Web server stopped.");
         }
 
     }

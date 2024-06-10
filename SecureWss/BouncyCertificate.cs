@@ -19,6 +19,8 @@ using X509KeyStorageFlags = System.Security.Cryptography.X509Certificates.X509Ke
 using X509ContentType = System.Security.Cryptography.X509Certificates.X509ContentType;
 using System.Text;
 using Org.BouncyCastle.Crypto.Operators;
+using SecureWss.Websockets;
+using System.Threading;
 
 namespace SecureWss
 {
@@ -33,6 +35,21 @@ namespace SecureWss
             // We need to pass 'Exportable', otherwise we can't get the private key.
             var issuerCertificate = new X509Certificate2(issuerFileName, password, X509KeyStorageFlags.Exportable);
             return issuerCertificate;
+        }
+
+        // Constructor
+        private string SubjectName { get; set; }
+        private string[] SubjectAlternativeNames { get; set; }
+        private string OutputDirectory { get; set; }
+        private string ServerCertName { get; set; }
+        private Server WebsocketServer { get; set; }
+        public BouncyCertificate(string subjectName, string[] subjectAlternativeNames, string outputDirectory, string serverCertName, Server _websocketServer)
+        {
+            this.SubjectName = subjectName;
+            this.SubjectAlternativeNames = subjectAlternativeNames;
+            this.OutputDirectory = outputDirectory;
+            this.ServerCertName = serverCertName;
+            this.WebsocketServer = _websocketServer;
         }
 
         public X509Certificate2 IssueCertificate(string subjectName, X509Certificate2 issuerCertificate, string[] subjectAlternativeNames, KeyPurposeID[] usages)
@@ -132,7 +149,7 @@ namespace SecureWss
 
             // Our certificate needs valid from/to values.
             var notBefore = DateTime.Now;
-            var notAfter = notBefore.AddYears(years);
+            var notAfter = notBefore.AddMinutes(10);
 
             certificateGenerator.SetNotBefore(notBefore);
             certificateGenerator.SetNotAfter(notAfter);
@@ -370,7 +387,7 @@ namespace SecureWss
             return bRet;
         }
 
-        public void CreateAndWriteCertificates(string subjectName, string[] subjectAlternativeNames, string outputDirectory, string serverCertName)
+        public void CreateAndWriteCertificates(string subjectName, string[] subjectAlternativeNames, string outputDirectory, string serverCertName, Server _websocketServer)
         {
             string rootCertName = $"RootCA";
             string rootCertPath = $"{Path.Combine(outputDirectory, rootCertName)}";
@@ -406,21 +423,70 @@ namespace SecureWss
                 if (!File.Exists($"{serverCertPath}.pfx"))
                 {
                     // Create the server certificate signed by the root certificate
-                    CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate: {RootCert}");
+                    CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate.");
                     var serverCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
                     WriteCertificate(serverCert, outputDirectory, serverCertName);
+                    CrestronConsole.PrintLine($"New server certificate created.");
+
+                    // Restart the web server if it's running
+                    if (_websocketServer.IsRunning)
+                    {
+                        CrestronConsole.PrintLine($"Restarting the web server...");
+                        _websocketServer.Restart();
+                        CrestronConsole.PrintLine($"Web server restarted.");
+                    }
+                    else
+                    {
+                        CrestronConsole.PrintLine($"Web server is not running.");
+                    }
                 }
                 // Otherwise check its date
                 else
                 {
                     var serverCert = new X509Certificate2($"{serverCertPath}.pfx", CertificatePassword, X509KeyStorageFlags.Exportable);
+                    // If the certificate is out of date
                     if (serverCert.NotAfter < DateTime.Now)
                     {
                         CrestronConsole.PrintLine($"Certificate '{serverCertPath}.pfx' has expired. Expiry date: {serverCert.NotAfter}");
-                        CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate: {RootCert}");
+                        CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate.");
                         var newServerCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
                         WriteCertificate(newServerCert, outputDirectory, serverCertName);
+                        CrestronConsole.PrintLine($"New server certificate created.");
+
+                        // Restart the web server if it's running
+                        if (_websocketServer.IsRunning)
+                        {
+                            CrestronConsole.PrintLine($"Restarting the web server...");
+                            _websocketServer.Restart();
+                            CrestronConsole.PrintLine($"Web server restarted.");
+                        }
+                        else
+                        {
+                            CrestronConsole.PrintLine($"Web server is not running.");
+                        }
                     }
+                    // Otherwise if it's within 3 days of expiry
+                    else if (serverCert.NotAfter < DateTime.Now.AddMinutes(3))
+                    {
+                        CrestronConsole.PrintLine($"Certificate '{serverCertPath}.pfx' expires within 3 days. Expiry date: {serverCert.NotAfter}");
+                        CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate.");
+                        var newServerCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
+                        WriteCertificate(newServerCert, outputDirectory, serverCertName);
+                        CrestronConsole.PrintLine($"New server certificate created.");
+
+                        // Restart the web server if it's running
+                        if (_websocketServer.IsRunning)
+                        {
+                            CrestronConsole.PrintLine($"Restarting the web server...");
+                            _websocketServer.Restart();
+                            CrestronConsole.PrintLine($"Web server restarted.");
+                        }
+                        else
+                        {
+                            CrestronConsole.PrintLine($"Web server is not running.");
+                        }
+                    }
+                    // Otherwise if its valid
                     else
                     {
                         CrestronConsole.PrintLine($"Certificate '{serverCertPath}' is valid. Expiry date: {serverCert.NotAfter}");
@@ -431,57 +497,16 @@ namespace SecureWss
             {
                 CrestronConsole.PrintLine($"Failed to create and write certificates\r\n{ex.Message}");
             }
-
-            /*string rootCertPath = $"RootCA";
-            string serverCertPath = $"{Path.Combine(outputDirectory, certName)}";
-            X509Certificate2 RootCert = null;
-
-            try
-            {
-                // If the root certificate doesn't already exist
-                if (!File.Exists($"{rootCertPath}.cer"))
-                {
-                    // Create the root certificate
-                    CrestronConsole.PrintLine($"Creating new root certificate...");
-                    RootCert = CreateCertificateAuthorityCertificate("CN=Cornflake", null, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
-                    WriteCertificate(RootCert, outputDirectory, rootCertPath);
-                }
-                else if (RootCert == null)
-                {
-                    CrestronConsole.PrintLine($"Getting existing root certificate...");
-                    RootCert = new X509Certificate2($"{rootCertPath}.cer");
-                    CrestronConsole.PrintLine($"Root certificate retrieved. Expiry date: {RootCert.NotAfter}");
-                }
-
-                // If the server certificate doesn't already exist
-                if (!File.Exists($"{serverCertPath}.pfx"))
-                {
-                    // Create the server certificate signed by the root certificate
-                    CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate: {RootCert}");
-                    var serverCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
-                    WriteCertificate(serverCert, outputDirectory, certName);
-                }
-                // Otherwise check its date
-                else
-                {
-                    var serverCert = new X509Certificate2($"{serverCertPath}.cer");
-                    if (serverCert.NotAfter < DateTime.Now)
-                    {
-                        CrestronConsole.PrintLine($"Certificate '{outputDirectory}' has expired. Expiry date: {serverCert.NotAfter}");
-                        CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate: {RootCert}");
-                        var newServerCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
-                        WriteCertificate(newServerCert, outputDirectory, certName);
-                    }
-                    else
-                    {
-                        CrestronConsole.PrintLine($"Certificate '{outputDirectory}' is valid. Expiry date: {serverCert.NotAfter}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                CrestronConsole.PrintLine($"Failed to Create and write certificates\r\n{ex.Message}");
-            }*/
+        }
+        public void CheckCertificates()
+        {
+            // Check certificates every 30 seconds
+            Timer timer = new Timer(Callback, null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+        }
+        public void Callback(object state)
+        {
+            CrestronConsole.PrintLine($"Check certificates method callback called.");
+            CreateAndWriteCertificates(SubjectName, SubjectAlternativeNames, OutputDirectory, ServerCertName, WebsocketServer);
 
         }
     }
