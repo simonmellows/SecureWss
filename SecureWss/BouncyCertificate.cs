@@ -431,7 +431,7 @@ namespace SecureWss
                     CrestronConsole.PrintLine($"New server certificate created.");
 
                     // Restart the web server if it's running
-                    if (_websocketServer.IsRunning)
+                    if (_websocketServer.HttpsIsRunning)
                     {
                         _websocketServer.Restart(Constants.HttpsPort);
                     }
@@ -454,7 +454,7 @@ namespace SecureWss
                         CrestronConsole.PrintLine($"New server certificate created.");
 
                         // Restart the web server if it's running
-                        if (_websocketServer.IsRunning)
+                        if (_websocketServer.HttpsIsRunning)
                         {
                             _websocketServer.Restart(Constants.HttpsPort);
                         }
@@ -473,7 +473,7 @@ namespace SecureWss
                         CrestronConsole.PrintLine($"New server certificate created.");
 
                         // Restart the web server if it's running
-                        if (_websocketServer.IsRunning)
+                        if (_websocketServer.HttpsIsRunning)
                         {
                             _websocketServer.Restart(Constants.HttpsPort);
                         }

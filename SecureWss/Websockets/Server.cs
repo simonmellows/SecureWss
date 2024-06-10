@@ -81,7 +81,8 @@ namespace SecureWss.Websockets
             { "sfnt", "font/sfnt" },
             { "ico", "image/vnd.microsoft.icon" }
         };
-        public bool IsRunning { get => _httpsServer?.IsListening ?? false; }//_wsServer?.IsListening ?? false; }
+        public bool HttpIsRunning { get => _httpServer?.IsListening ?? false; }//_wsServer?.IsListening ?? false; }
+        public bool HttpsIsRunning { get => _httpsServer?.IsListening ?? false; }//_wsServer?.IsListening ?? false; }
 
         // Constructor for secure server
         public Server(int httpPort, int httpsPort, string certPath = "", string certPassword = "", string rootPath = @"\html")
@@ -99,73 +100,74 @@ namespace SecureWss.Websockets
             {
                 case Constants.HttpPort:
                     Debug.Print(DebugLevel.Debug, "Restarting HTTP server...");
-                    this._httpServer.Stop();
-                    this._httpServer.Start();
+                    Stop(Constants.HttpPort);
+                    Start();
                     Debug.Print(DebugLevel.Debug, "HTTP server restarted.");
                     break;
                 case Constants.HttpsPort:
                     Debug.Print(DebugLevel.Debug, "Restarting HTTPS server...");
-                    this._httpsServer.Stop();
-                    this._httpsServer.Start();
+                    Stop(Constants.HttpsPort);
+                    Start();
                     Debug.Print(DebugLevel.Debug, "HTTPS server restarted.");
                     break;
                 default:
                     Debug.Print(DebugLevel.Debug, "Restarting HTTP and HTTPS servers...");
-                    this._httpServer.Stop();
-                    this._httpsServer.Stop();
-                    this._httpServer.Start();
-                    this._httpsServer.Start();
+                    Stop();
+                    Start();
                     Debug.Print(DebugLevel.Debug, "HTTP and HTTPS servers restarted.");
                     break;
             }
         }
 
-        public void Start(int httpPort, int httpsPort, string certPath = "", string certPassword = "", string rootPath = @"\html")
+        //public void Start(int httpPort, int httpsPort, string certPath = "", string certPassword = "", string rootPath = @"\html")
+        public void Start()
         {
             try
             {
                 // Unsecure HTTP Server
-                Debug.Print(DebugLevel.WebSocket, $"Creating HTTP Server from directory {rootPath}");
-                _httpServer = new HttpServer(httpPort)
+                if (!HttpIsRunning)
                 {
-                    RootPath = rootPath
-                };
-                ConfigureServer(_httpServer, rootPath);
+                    Debug.Print(DebugLevel.WebSocket, $"Creating HTTP Server from directory {RootPath}");
+                    _httpServer = new HttpServer(HttpPort)
+                    {
+                        RootPath = RootPath
+                    };
+                    ConfigureServer(_httpServer, RootPath);
+
+                    _httpServer.Start();
+                    Debug.Print(DebugLevel.WebSocket, $"HTTP server ready on port {HttpPort}");
+                }
 
                 // Secure HTTPS Server
-                Debug.Print(DebugLevel.WebSocket, $"Creating HTTPS Server from directory {rootPath}");
-                _httpsServer = new HttpServer(httpsPort, true)
+                if (!HttpsIsRunning)
                 {
-                    RootPath = rootPath
-                };
-
-                Debug.Print($"RootPath = {_httpsServer.RootPath}");
-                if (!string.IsNullOrWhiteSpace(certPath)) 
-                {
-                    Debug.Print(DebugLevel.WebSocket, "Assigning SSL Configuration");
-                    _httpsServer.SslConfiguration = new ServerSslConfiguration(new X509Certificate2(certPath, certPassword))
+                    Debug.Print(DebugLevel.WebSocket, $"Creating HTTPS Server from directory {RootPath}");
+                    _httpsServer = new HttpServer(HttpsPort, true)
                     {
-                        ClientCertificateRequired = false,
-                        CheckCertificateRevocation = false,
-                        EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls,
-                        //this is just to test, you might want to actually validate
-                        ClientCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
-                        {
-                            Debug.Print(DebugLevel.WebSocket, "HTTPS ClientCerticateValidation Callback triggered");
-                            return true;
-                        }
+                        RootPath = RootPath
                     };
+
+                    Debug.Print($"RootPath = {_httpsServer.RootPath}");
+                    if (!string.IsNullOrWhiteSpace(CertPath))
+                    {
+                        Debug.Print(DebugLevel.WebSocket, "Assigning SSL Configuration");
+                        _httpsServer.SslConfiguration = new ServerSslConfiguration(new X509Certificate2(CertPath, CertPassword))
+                        {
+                            ClientCertificateRequired = false,
+                            CheckCertificateRevocation = false,
+                            EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls,
+                            //this is just to test, you might want to actually validate
+                            ClientCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
+                            {
+                                Debug.Print(DebugLevel.WebSocket, "HTTPS ClientCerticateValidation Callback triggered");
+                                return true;
+                            }
+                        };
+                    }
+                    ConfigureServer(_httpsServer, RootPath);
+                    _httpsServer.Start();
+                    Debug.Print(DebugLevel.WebSocket, $"HTTPS server ready on port {HttpsPort}");
                 }
-                ConfigureServer(_httpsServer, rootPath);
-
-                // Start both servers
-                _httpServer.Start();
-                _httpsServer.Start();
-
-                Debug.Print(DebugLevel.WebSocket, $"HTTP server ready at ws://localhost:{httpPort}/echo");
-                Debug.Print(DebugLevel.WebSocket, $"HTTPS server ready at wss://localhost:{httpsPort}/echo");
-
-             
             }
             catch (Exception ex)
             {
@@ -225,15 +227,33 @@ namespace SecureWss.Websockets
         }
 
 
-        public void Stop()
+        public void Stop(int port = 0)
         {
-            Debug.Print(DebugLevel.Debug, "Stopping web servers...");
-            _httpServer?.Stop();
-            _httpsServer?.Stop();
+            switch (port)
+            {
+                case Constants.HttpPort:
+                    Debug.Print(DebugLevel.Debug, "Stopping HTTP server...");
+                    _httpServer?.Stop();
+                    _httpServer = null;
+                    Debug.Print(DebugLevel.Debug, "HTTP server stopped.");
+                    break;
 
-            _httpServer = null;
-            _httpsServer = null;
-            Debug.Print(DebugLevel.Debug, "Web servers stopped.");
+                case Constants.HttpsPort:
+                    Debug.Print(DebugLevel.Debug, "Stopping HTTPS server...");
+                    _httpsServer?.Stop();
+                    _httpsServer = null;
+                    Debug.Print(DebugLevel.Debug, "HTTPS server stopped.");
+                    break;
+
+                default:
+                    Debug.Print(DebugLevel.Debug, "Stopping HTTP and HTTPS servers...");
+                    _httpServer?.Stop();
+                    _httpsServer?.Stop();
+                    _httpServer = null;
+                    _httpsServer = null;
+                    Debug.Print(DebugLevel.Debug, "HTTP and HTTPS servers stopped.");
+                    break;
+            }
         }
 
     }

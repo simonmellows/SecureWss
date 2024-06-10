@@ -87,7 +87,7 @@ namespace SecureWss
         {
             try
             {
-                // Create a secure WebSocket server on port 42080
+                // Create a secure WebSocket server on port 42080 and unsecure WebSocket server on port 42081
                 _websocketServer = new Server(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
 
                 ControlSystem.ThisControlSystem = this;
@@ -111,7 +111,8 @@ namespace SecureWss
                 Task.Run(() =>
                 {
                     CreateCert(null);
-                    _websocketServer.Start(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
+                    //_websocketServer.Start(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
+                    _websocketServer.Start();
                     Debug.Print(DebugLevel.Debug, "Certificate and websocket task complete");
                 });
 
@@ -252,12 +253,15 @@ namespace SecureWss
 
         private void StartServer(string[] args)
         {
-            if (_websocketServer.IsRunning) _websocketServer.Stop();
+            if (_websocketServer.HttpsIsRunning) _websocketServer.Stop(Constants.HttpsPort);
+            if(_websocketServer.HttpIsRunning) _websocketServer.Stop(Constants.HttpPort);
 
             if (args.Length > 0 && args[0].Equals("secure", StringComparison.OrdinalIgnoreCase))
-                _websocketServer.Start(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\html\wss");
+                //_websocketServer.Start(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\html\wss");
+                _websocketServer.Start();
             else
-                _websocketServer.Start(Constants.HttpPort, Constants.HttpsPort);
+                //_websocketServer.Start(Constants.HttpPort, Constants.HttpsPort);
+                _websocketServer.Start();
         }
         private void ConsoleX509List(string[] args)
         {
