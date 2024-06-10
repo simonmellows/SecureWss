@@ -390,8 +390,7 @@ namespace SecureWss
 
         public void CreateAndWriteCertificates(string subjectName, string[] subjectAlternativeNames, string outputDirectory, string serverCertName, Server _websocketServer)
         {
-            string rootCertName = $"RootCA";
-            string rootCertPath = $"{Path.Combine(outputDirectory, rootCertName)}";
+            string rootCertPath = $"{Path.Combine(outputDirectory, Constants.RootCertName)}";
             string serverCertPath = $"{Path.Combine(outputDirectory, serverCertName)}";
             X509Certificate2 RootCert;
             Busy = true;
@@ -405,7 +404,7 @@ namespace SecureWss
                     // Create the root certificate
                     CrestronConsole.PrintLine($"Creating new root certificate...");
                     RootCert = CreateCertificateAuthorityCertificate("CN=Cornflake", null, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
-                    WriteCertificate(RootCert, outputDirectory, rootCertName);
+                    WriteCertificate(RootCert, outputDirectory, Constants.RootCertName);
                 }
                 else
                 {
