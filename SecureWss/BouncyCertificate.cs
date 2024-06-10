@@ -39,20 +39,17 @@ namespace SecureWss
         {
             // It's self-signed, so these are the same.
             var issuerName = issuerCertificate.Subject;
-
             var random = GetSecureRandom();
             var subjectKeyPair = GenerateKeyPair(random, 2048);
-
             var issuerKeyPair = DotNetUtilities.GetKeyPair(issuerCertificate.PrivateKey);
-
             var serialNumber = GenerateSerialNumber(random);
             var issuerSerialNumber = new BigInteger(issuerCertificate.GetSerialNumber());
-
             const bool isCertificateAuthority = false;
+
             var certificate = GenerateCertificate(random, subjectName, subjectKeyPair, serialNumber,
                                                   subjectAlternativeNames, issuerName, issuerKeyPair,
-                                                  issuerSerialNumber, isCertificateAuthority,
-                                                  usages);
+                                                  issuerSerialNumber, isCertificateAuthority, usages, 1);
+
             return ConvertCertificate(certificate, subjectKeyPair, random);
         }
 
@@ -74,7 +71,7 @@ namespace SecureWss
             var certificate = GenerateCertificate(random, subjectName, subjectKeyPair, serialNumber,
                                                   subjectAlternativeNames, issuerName, issuerKeyPair,
                                                   issuerSerialNumber, isCertificateAuthority,
-                                                  usages);
+                                                  usages, 30);
             return ConvertCertificate(certificate, subjectKeyPair, random);
         }
 
@@ -96,7 +93,7 @@ namespace SecureWss
             var certificate = GenerateCertificate(random, subjectName, subjectKeyPair, serialNumber,
                                                   subjectAlternativeNames, issuerName, issuerKeyPair,
                                                   issuerSerialNumber, isCertificateAuthority,
-                                                  usages);
+                                                  usages, 2);
             return ConvertCertificate(certificate, subjectKeyPair, random);
         }
 
@@ -119,7 +116,8 @@ namespace SecureWss
                                                            AsymmetricCipherKeyPair issuerKeyPair,
                                                            BigInteger issuerSerialNumber,
                                                            bool isCertificateAuthority,
-                                                           KeyPurposeID[] usages)
+                                                           KeyPurposeID[] usages,
+                                                           int years)
         {
             var certificateGenerator = new X509V3CertificateGenerator();
 
@@ -133,8 +131,8 @@ namespace SecureWss
             certificateGenerator.SetSubjectDN(subjectDN);
 
             // Our certificate needs valid from/to values.
-            var notBefore = DateTime.UtcNow.Date;
-            var notAfter = notBefore.AddYears(2);
+            var notBefore = DateTime.Now;
+            var notAfter = notBefore.AddYears(years);
 
             certificateGenerator.SetNotBefore(notBefore);
             certificateGenerator.SetNotAfter(notAfter);
@@ -227,13 +225,31 @@ namespace SecureWss
         private void AddSubjectAlternativeNames(X509V3CertificateGenerator certificateGenerator,
                                                        IEnumerable<string> subjectAlternativeNames)
         {
-            var subjectAlternativeNamesExtension =
+            /*var subjectAlternativeNamesExtension =
                 new DerSequence(
                     subjectAlternativeNames.Select(name => new GeneralName(GeneralName.DnsName, name))
                                            .ToArray<Asn1Encodable>());
 
             certificateGenerator.AddExtension(
-                X509Extensions.SubjectAlternativeName.Id, false, subjectAlternativeNamesExtension);
+                X509Extensions.SubjectAlternativeName.Id, false, subjectAlternativeNamesExtension);*/
+            var generalNames = new List<GeneralName>();
+
+            foreach (var name in subjectAlternativeNames)
+            {
+                if (System.Net.IPAddress.TryParse(name, out var ipAddress))
+                {
+                    // It's an IP address
+                    generalNames.Add(new GeneralName(GeneralName.IPAddress, name));
+                }
+                else
+                {
+                    // It's a DNS name
+                    generalNames.Add(new GeneralName(GeneralName.DnsName, name));
+                }
+            }
+
+            var subjectAlternativeNamesExtension = new DerSequence(generalNames.ToArray<Asn1Encodable>());
+            certificateGenerator.AddExtension(X509Extensions.SubjectAlternativeName.Id, false, subjectAlternativeNamesExtension);
         }
 
         /// <summary>
@@ -295,7 +311,7 @@ namespace SecureWss
 
             // Convert it to an X509Certificate2 object by saving/loading it from a MemoryStream.
             // It needs a password. Since we'll remove this later, it doesn't particularly matter what we use.
-            
+
             var stream = new MemoryStream();
             store.Save(stream, CertificatePassword.ToCharArray(), random);
 
@@ -352,6 +368,121 @@ namespace SecureWss
             }
 
             return bRet;
+        }
+
+        public void CreateAndWriteCertificates(string subjectName, string[] subjectAlternativeNames, string outputDirectory, string serverCertName)
+        {
+            string rootCertName = $"RootCA";
+            string rootCertPath = $"{Path.Combine(outputDirectory, rootCertName)}";
+            string serverCertPath = $"{Path.Combine(outputDirectory, serverCertName)}";
+            X509Certificate2 RootCert;
+
+            try
+            {
+                CrestronConsole.PrintLine($"Root cert creation/retrieval starting...");
+                // If the root certificate doesn't already exist
+                if (!File.Exists($"{rootCertPath}.pfx"))
+                {
+                    // Create the root certificate
+                    CrestronConsole.PrintLine($"Creating new root certificate...");
+                    RootCert = CreateCertificateAuthorityCertificate("CN=Cornflake", null, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
+                    WriteCertificate(RootCert, outputDirectory, rootCertName);
+                }
+                else
+                {
+                    CrestronConsole.PrintLine($"Getting existing root certificate...");
+                    RootCert = new X509Certificate2($"{rootCertPath}.pfx", CertificatePassword, X509KeyStorageFlags.Exportable);
+                    CrestronConsole.PrintLine($"Root certificate retrieved. Expiry date: {RootCert.NotAfter}");
+                }
+
+                if (RootCert == null)
+                {
+                    CrestronConsole.PrintLine($"ERROR: No root certificate");
+                    throw new Exception("ERROR: No root certificate");
+                }
+                CrestronConsole.PrintLine($"Root cert creation/retrieval complete.");
+
+                // If the server certificate doesn't already exist
+                if (!File.Exists($"{serverCertPath}.pfx"))
+                {
+                    // Create the server certificate signed by the root certificate
+                    CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate: {RootCert}");
+                    var serverCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
+                    WriteCertificate(serverCert, outputDirectory, serverCertName);
+                }
+                // Otherwise check its date
+                else
+                {
+                    var serverCert = new X509Certificate2($"{serverCertPath}.pfx", CertificatePassword, X509KeyStorageFlags.Exportable);
+                    if (serverCert.NotAfter < DateTime.Now)
+                    {
+                        CrestronConsole.PrintLine($"Certificate '{serverCertPath}.pfx' has expired. Expiry date: {serverCert.NotAfter}");
+                        CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate: {RootCert}");
+                        var newServerCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
+                        WriteCertificate(newServerCert, outputDirectory, serverCertName);
+                    }
+                    else
+                    {
+                        CrestronConsole.PrintLine($"Certificate '{serverCertPath}' is valid. Expiry date: {serverCert.NotAfter}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                CrestronConsole.PrintLine($"Failed to create and write certificates\r\n{ex.Message}");
+            }
+
+            /*string rootCertPath = $"RootCA";
+            string serverCertPath = $"{Path.Combine(outputDirectory, certName)}";
+            X509Certificate2 RootCert = null;
+
+            try
+            {
+                // If the root certificate doesn't already exist
+                if (!File.Exists($"{rootCertPath}.cer"))
+                {
+                    // Create the root certificate
+                    CrestronConsole.PrintLine($"Creating new root certificate...");
+                    RootCert = CreateCertificateAuthorityCertificate("CN=Cornflake", null, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
+                    WriteCertificate(RootCert, outputDirectory, rootCertPath);
+                }
+                else if (RootCert == null)
+                {
+                    CrestronConsole.PrintLine($"Getting existing root certificate...");
+                    RootCert = new X509Certificate2($"{rootCertPath}.cer");
+                    CrestronConsole.PrintLine($"Root certificate retrieved. Expiry date: {RootCert.NotAfter}");
+                }
+
+                // If the server certificate doesn't already exist
+                if (!File.Exists($"{serverCertPath}.pfx"))
+                {
+                    // Create the server certificate signed by the root certificate
+                    CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate: {RootCert}");
+                    var serverCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
+                    WriteCertificate(serverCert, outputDirectory, certName);
+                }
+                // Otherwise check its date
+                else
+                {
+                    var serverCert = new X509Certificate2($"{serverCertPath}.cer");
+                    if (serverCert.NotAfter < DateTime.Now)
+                    {
+                        CrestronConsole.PrintLine($"Certificate '{outputDirectory}' has expired. Expiry date: {serverCert.NotAfter}");
+                        CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate: {RootCert}");
+                        var newServerCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
+                        WriteCertificate(newServerCert, outputDirectory, certName);
+                    }
+                    else
+                    {
+                        CrestronConsole.PrintLine($"Certificate '{outputDirectory}' is valid. Expiry date: {serverCert.NotAfter}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                CrestronConsole.PrintLine($"Failed to Create and write certificates\r\n{ex.Message}");
+            }*/
+
         }
     }
 }

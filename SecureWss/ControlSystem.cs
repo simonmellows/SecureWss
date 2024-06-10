@@ -3,6 +3,7 @@ using C5Debugger;
 using Crestron.SimplSharp;                          	// For Basic SIMPL# Classes
 using Crestron.SimplSharpPro;                       	// For Basic SIMPL#Pro classes
 using Crestron.SimplSharpPro.CrestronThread;        	// For Threading
+using Crestron.SimplSharpPro.UI;
 
 using Org.BouncyCastle.Asn1.X509;
 using SecureWss.Websockets;
@@ -13,7 +14,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
-
+using Newtonsoft.Json;
 
 namespace SecureWss
 {
@@ -27,9 +28,11 @@ namespace SecureWss
     {
         private Dictionary<string, ConsoleCommand> _consoleCommands;
         private Server _websocketServer;
+        //private SipWebSocketServer _sipWebsocketServer;
         private const string _certificateName = "selfCres";
         private const string _certificatePassword = "cres12345";
-
+        public static ControlSystem ThisControlSystem;
+        public static SystemConfig MySystem;
         /// <summary>
         /// ControlSystem Constructor. Starting point for the SIMPL#Pro program.
         /// Use the constructor to:
@@ -78,6 +81,8 @@ namespace SecureWss
             try
             {
                 _websocketServer = new Server();
+                ControlSystem.ThisControlSystem = this;
+                //_sipWebsocketServer = new SipWebSocketServer();
                 Debug.Name = "WebSocket Secure Test";
                 Debug.DebugMessage += CrestronConsole.PrintLine;
                 //Debug.ErrorMessage += (message) => { };  //Only use this if you want to send a message to the UI's
@@ -95,9 +100,37 @@ namespace SecureWss
                 CrestronConsole.AddNewConsoleCommand(ConsoleCommandProcessor, "wss", "", ConsoleAccessLevelEnum.AccessOperator);
                 Task.Run(() =>
                 {
-                    if (!File.Exists($"\\user\\{ _certificateName}.pfx"))
-                        CreateCert(null);
-                    _websocketServer.Start(42080, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\html\wss");
+                    //if (!File.Exists($"\\user\\{ _certificateName}.pfx"))
+                    CreateCert(null);
+                    _websocketServer.Start(42080, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
+                });
+
+                Task.Run(() =>
+                {
+                    Debug.Print(DebugLevel.Debug, $"Deserializing JSON...");
+                    var json = File.ReadAllText(@"\user/config/system.json");
+                    if (json == null)
+                    {
+                        Debug.Print(DebugLevel.Error, $"No config.json file found");
+                        throw new Exception("No config.json file found");
+                    }
+
+                    //var system = JsonSerializer.Deserialize<System>(json);
+                    ControlSystem.MySystem = JsonConvert.DeserializeObject<SystemConfig>(json);
+                    Debug.Print(DebugLevel.Debug, $"Deserialization complete.");
+                    if (ControlSystem.MySystem != null)
+                    {
+                        Debug.Print(DebugLevel.Debug, $"User Interfaces:");
+                        foreach (UserInterface userInterface in ControlSystem.MySystem.UserInterfaces)
+                        {
+                            Debug.Print(DebugLevel.Debug, $"{userInterface.Label}");
+                        }
+                        Debug.Print(DebugLevel.Debug, $"Areas:");
+                        foreach (Area area in ControlSystem.MySystem.Areas)
+                        {
+                            Debug.Print(DebugLevel.Debug, $"{area.Label}");
+                        }
+                    }
                 });
             }
             catch (Exception e)
@@ -105,13 +138,14 @@ namespace SecureWss
                 ErrorLog.Error($"Error in InitializeSystem: {e.Message}");
             }
         }
+
         private void ConsoleCommandProcessor(string arg)
         {
             Task.Run(() =>
             {
                 try
                 {
-                    string[] args = arg.Split(' ');                    
+                    string[] args = arg.Split(' ');
                     if (args.Length > 0)
                     {
                         if (_consoleCommands.TryGetValue(args[0].ToLower(), out ConsoleCommand command))
@@ -182,6 +216,7 @@ namespace SecureWss
             Debug.Print(DebugLevel.Console, "Status: {0}", Debug.Enabled ? debugLevelReport : "Disabled");
         }
 
+        /*
         private void CreateCert(string[] args)
         {
             try
@@ -211,11 +246,45 @@ namespace SecureWss
                 CrestronConsole.PrintLine($"WSS CreateCert Failed\r\n{ex.Message}\r\n{ex.StackTrace}");
             }
         }
+        */
+        private void CreateCert(string[] args)
+        {
+            try
+            {
+                Debug.Print($"CreateCert Creating Utility");
+                //var utility = new CertificateUtility();
+                var utility = new BouncyCertificate();
+                Debug.Print($"CreateCert Calling CreateCert");
+                //utility.CreateCert();
+                var ipAddress = CrestronEthernetHelper.GetEthernetParameter(CrestronEthernetHelper.ETHERNET_PARAMETER_TO_GET.GET_CURRENT_IP_ADDRESS, 0);
+                var hostName = CrestronEthernetHelper.GetEthernetParameter(CrestronEthernetHelper.ETHERNET_PARAMETER_TO_GET.GET_HOSTNAME, 0);
+                var domainName = CrestronEthernetHelper.GetEthernetParameter(CrestronEthernetHelper.ETHERNET_PARAMETER_TO_GET.GET_DOMAIN_NAME, 0);
+
+                Debug.Print($"DomainName: {domainName} | HostName: {hostName} | {hostName}.{domainName}@{ipAddress}");
+
+                //var certificate = utility.CreateSelfSignedCertificate($"CN={hostName}.{domainName}", new[] { $"{hostName}.{domainName}", ipAddress }, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
+
+                //Crestron fails to let us do this...perhaps it should be done through their Dll's but haven't tested
+                //Debug.Print($"CreateCert Storing Certificate To My.LocalMachine");
+                //utility.AddCertToStore(certificate, StoreName.My, StoreLocation.LocalMachine);
+
+                //Debug.Print($"CreateCert Saving Cert to \\user\\");
+                utility.CertificatePassword = _certificatePassword;
+                utility.CreateAndWriteCertificates($"CN={hostName}.{domainName}", new[] { $"{hostName}.{domainName}", ipAddress }, @"\user\", _certificateName);
+                //utility.WriteCertificate(certificate, @"\user\", _certificateName);
+                Debug.Print($"CreateCert Ending CreateCert");
+            }
+            catch (Exception ex)
+            {
+                CrestronConsole.PrintLine($"WSS CreateCert Failed\r\n{ex.Message}\r\n{ex.StackTrace}");
+            }
+        }
+
         private void StartServer(string[] args)
         {
             if (_websocketServer.IsRunning) _websocketServer.Stop();
 
-            if (args.Length > 0 && args[0].Equals("secure", StringComparison.OrdinalIgnoreCase))                
+            if (args.Length > 0 && args[0].Equals("secure", StringComparison.OrdinalIgnoreCase))
                 _websocketServer.Start(42080, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\html\wss");
             else
                 _websocketServer.Start(42080);
