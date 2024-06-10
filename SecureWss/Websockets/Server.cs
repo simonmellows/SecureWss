@@ -10,6 +10,9 @@ using System.Text;
 using WebSocketSharp;
 using WebSocketSharp.Net;
 using WebSocketSharp.Server;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Reflection;
 
 namespace SecureWss.Websockets
 {
@@ -179,7 +182,7 @@ namespace SecureWss.Websockets
         {
             Debug.Print(DebugLevel.WebSocket, $"RootPath = {server.RootPath}");
             Debug.Print(DebugLevel.WebSocket, "Adding Echo Service");
-            server.AddWebSocketService<EchoService>("/echo");
+            server.AddWebSocketService<CrestronService>("/echo");
             Debug.Print(DebugLevel.WebSocket, "Assigning Log Info");
             server.Log.Level = LogLevel.Trace;
             server.Log.Output = delegate
@@ -280,7 +283,7 @@ namespace SecureWss.Websockets
             {
                 base.OnOpen();
                 Debug.Print(DebugLevel.WebSocket, $"New Client Connected: {ID}");
-                
+
             }
             catch (Exception ex)
             {
@@ -290,7 +293,7 @@ namespace SecureWss.Websockets
         protected override void OnMessage(MessageEventArgs e)
         {
             try
-            {                
+            {
                 var received = e.Data;
                 Debug.Print(DebugLevel.WebSocket, $"EchoService Received {received} and echoing back");
                 Send(received);
@@ -311,6 +314,9 @@ namespace SecureWss.Websockets
     /// </summary>
     public class CrestronService : WebSocketBehavior
     {
+        public uint IpId { get; set; }
+        public static List<CrestronService> Clients = new List<CrestronService>();
+
         public CrestronService()
         {
             try
@@ -327,8 +333,11 @@ namespace SecureWss.Websockets
         {
             try
             {
+
                 base.OnOpen();
                 Debug.Print(DebugLevel.WebSocket, $"New Client Connected: {ID}");
+                Clients.Add(this);
+                Debug.Print(DebugLevel.WebSocket, "Client added to database");
 
             }
             catch (Exception ex)
@@ -341,17 +350,85 @@ namespace SecureWss.Websockets
             try
             {
                 var received = e.Data;
-                Debug.Print(DebugLevel.WebSocket, $"EchoService Received {received} and echoing back");
-                Send(received);
+                Debug.Print(DebugLevel.WebSocket, $"CrestronService Received {received}");
+
+                // Assign data as a JSON object and merge received JSON object into core feedback
+                JObject source = JObject.Parse(received);
+
+                Debug.Print(DebugLevel.WebSocket, $"Received JSON: {source}");
+
+                if (source["WebSocketMethod"] != null)
+                {
+                    Debug.Print(DebugLevel.WebSocket, $"WebSocket method command:");
+
+                    WebSocketMethod webSocketMethod = JsonConvert.DeserializeObject<WebSocketMethod>(JsonConvert.SerializeObject(source["WebSocketMethod"]));
+
+                    InvokeMethod(webSocketMethod.Method, webSocketMethod.Parameters);
+                }
+                else
+                {
+                    Debug.Print(DebugLevel.WebSocket, $"System command received.");
+                }
             }
             catch (Exception ex)
             {
                 Debug.Print(DebugLevel.Error, "WebSocket.OnMessage error {0}", ex.Message);
             }
         }
+        protected override void OnClose(CloseEventArgs e)
+        {
+
+            try
+            {
+                base.OnClose(e);
+                Debug.Print(DebugLevel.WebSocket, $"Client Disconnected: {ID}");
+                Clients.Remove(this);
+                Debug.Print(DebugLevel.WebSocket, "Client removed from database");
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(DebugLevel.Error, "WebSocket.OnClose error {0}", ex.Message);
+            }
+        }
         protected override void OnError(WebSocketSharp.ErrorEventArgs e)
         {
             Debug.Print(DebugLevel.Error, "WebSocket.OnError message {0}", e.Message);
         }
+
+        private void InvokeMethod(string methodName, params object[] parameters)
+        {
+            // Find the method in the current class by name
+            MethodInfo method = GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+
+            if (method == null)
+            {
+                Debug.Print(DebugLevel.Debug, $"Method '{methodName}' not found.");
+                return;
+            }
+
+            ParameterInfo[] methodParams = method.GetParameters();
+            // Check if the number of parameters match
+            if (methodParams.Length != parameters.Length)
+            {
+                Debug.Print(DebugLevel.Error, $"Parameter count mismatch for method '{methodName}'. Expected {methodParams.Length}, got {parameters.Length}.");
+                return;
+            }
+
+            // Invoke the method using reflection
+            method.Invoke(this, parameters);
+        }
+
+        private void RegisterVoipInterface(string ipId)
+        {
+            Debug.Print(DebugLevel.WebSocket, $"Registering IP ID {ipId} to WebSocket instance.");
+            Clients.Find(c => c.ID == this.ID).IpId = Convert.ToUInt32(ipId, 16);
+            Debug.Print(DebugLevel.WebSocket, $"IP ID {ipId} assigned to WebSocket instance.");
+        }
+    }
+
+    public class WebSocketMethod
+    {
+        public string Method { get; set; }
+        public object[] Parameters { get; set; }
     }
 }

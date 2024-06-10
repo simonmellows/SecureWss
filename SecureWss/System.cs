@@ -77,6 +77,7 @@ namespace SecureWss
         public string Id { get; }
         public uint IpId { get; }
         public object Instance { get; set; }
+        public string WebSocketId { get; set; }
 
 
         [JsonConstructor]
@@ -159,6 +160,11 @@ namespace SecureWss
                 }
             }
         }
+
+        public void RegisterWithWebSocketServer()
+        {
+
+        }   
 
         public void ExtenderVoipReservedSigs_DeviceExtenderSigChange(DeviceExtender currentDeviceExtender, SigEventArgs args)
         {
