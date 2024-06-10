@@ -18,6 +18,13 @@ using Newtonsoft.Json;
 
 namespace SecureWss
 {
+
+    public static class Constants
+    {
+        public const int HttpPort = 42081;
+        public const int HttpsPort = 42080;
+    }
+
     public class ConsoleCommand
     {
         public string Help { get; set; }
@@ -80,9 +87,10 @@ namespace SecureWss
         {
             try
             {
-                _websocketServer = new Server(42080, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
+                // Create a secure WebSocket server on port 42080
+                _websocketServer = new Server(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
+
                 ControlSystem.ThisControlSystem = this;
-                //_sipWebsocketServer = new SipWebSocketServer();
                 Debug.Name = "WebSocket Secure Test";
                 Debug.DebugMessage += CrestronConsole.PrintLine;
                 //Debug.ErrorMessage += (message) => { };  //Only use this if you want to send a message to the UI's
@@ -98,14 +106,16 @@ namespace SecureWss
                     { "x509list", new ConsoleCommand()    { Action = ConsoleX509List,       Help = "Lists all X509 Certificates on the system giving the ID (1-8)...hopefully.\rExample wss:[id] X509List 1" } },
                 };
                 CrestronConsole.AddNewConsoleCommand(ConsoleCommandProcessor, "wss", "", ConsoleAccessLevelEnum.AccessOperator);
+
+                // Task for HTTP and WebSocket setup
                 Task.Run(() =>
                 {
-                    //if (!File.Exists($"\\user\\{ _certificateName}.pfx"))
                     CreateCert(null);
-                    _websocketServer.Start(42080, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
+                    _websocketServer.Start(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
                     Debug.Print(DebugLevel.Debug, "Certificate and websocket task complete");
                 });
 
+                // Task for JSON config deserialization
                 Task.Run(() =>
                 {
                     Debug.Print(DebugLevel.Debug, $"Deserializing JSON...");
@@ -245,9 +255,9 @@ namespace SecureWss
             if (_websocketServer.IsRunning) _websocketServer.Stop();
 
             if (args.Length > 0 && args[0].Equals("secure", StringComparison.OrdinalIgnoreCase))
-                _websocketServer.Start(42080, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\html\wss");
+                _websocketServer.Start(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\html\wss");
             else
-                _websocketServer.Start(42080);
+                _websocketServer.Start(Constants.HttpPort, Constants.HttpsPort);
         }
         private void ConsoleX509List(string[] args)
         {

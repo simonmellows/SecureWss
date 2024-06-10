@@ -15,12 +15,15 @@ namespace SecureWss.Websockets
 {
     internal class Server
     {
-        private int Port { get; set; }
+        private int HttpPort { get; set; }
+        private int HttpsPort { get; set; }
         private string CertPath { get; set; }
         private string CertPassword { get; set; }
         private string RootPath { get; set; }
 
+        private HttpServer _httpServer;
         private HttpServer _httpsServer;
+
         private static Dictionary<string, string> _contentTypes = new Dictionary<string, string>
         {
             { "htm", "text/html" },
@@ -80,31 +83,62 @@ namespace SecureWss.Websockets
         };
         public bool IsRunning { get => _httpsServer?.IsListening ?? false; }//_wsServer?.IsListening ?? false; }
 
-        // Constructor
-        public Server(int port, string certPath = "", string certPassword = "", string rootPath = @"\html")
+        // Constructor for secure server
+        public Server(int httpPort, int httpsPort, string certPath = "", string certPassword = "", string rootPath = @"\html")
         {
-            this.Port = port;
+            this.HttpPort = httpPort;
+            this.HttpsPort = httpsPort;
             this.CertPath = certPath;
             this.CertPassword = certPassword;
             this.RootPath = rootPath;
         }
 
-        public void Restart()
+        public void Restart(int port = 0)
         {
-            this.Stop();
-            this.Start(this.Port, this.CertPath, this.CertPassword, this.RootPath);
+            switch (port)
+            {
+                case Constants.HttpPort:
+                    Debug.Print(DebugLevel.Debug, "Restarting HTTP server...");
+                    this._httpServer.Stop();
+                    this._httpServer.Start();
+                    Debug.Print(DebugLevel.Debug, "HTTP server restarted.");
+                    break;
+                case Constants.HttpsPort:
+                    Debug.Print(DebugLevel.Debug, "Restarting HTTPS server...");
+                    this._httpsServer.Stop();
+                    this._httpsServer.Start();
+                    Debug.Print(DebugLevel.Debug, "HTTPS server restarted.");
+                    break;
+                default:
+                    Debug.Print(DebugLevel.Debug, "Restarting HTTP and HTTPS servers...");
+                    this._httpServer.Stop();
+                    this._httpsServer.Stop();
+                    this._httpServer.Start();
+                    this._httpsServer.Start();
+                    Debug.Print(DebugLevel.Debug, "HTTP and HTTPS servers restarted.");
+                    break;
+            }
         }
 
-        public void Start(int port, string certPath = "", string certPassword = "", string rootPath = @"\html")
+        public void Start(int httpPort, int httpsPort, string certPath = "", string certPassword = "", string rootPath = @"\html")
         {
             try
             {
-                Debug.Print(DebugLevel.WebSocket, $"Creating Server from directory {rootPath}");
-                _httpsServer = new HttpServer(port, true)
+                // Unsecure HTTP Server
+                Debug.Print(DebugLevel.WebSocket, $"Creating HTTP Server from directory {rootPath}");
+                _httpServer = new HttpServer(httpPort)
                 {
                     RootPath = rootPath
                 };
-                
+                ConfigureServer(_httpServer, rootPath);
+
+                // Secure HTTPS Server
+                Debug.Print(DebugLevel.WebSocket, $"Creating HTTPS Server from directory {rootPath}");
+                _httpsServer = new HttpServer(httpsPort, true)
+                {
+                    RootPath = rootPath
+                };
+
                 Debug.Print($"RootPath = {_httpsServer.RootPath}");
                 if (!string.IsNullOrWhiteSpace(certPath)) 
                 {
@@ -122,61 +156,16 @@ namespace SecureWss.Websockets
                         }
                     };
                 }
-                Debug.Print(DebugLevel.WebSocket, "Adding Echo Service");
-                _httpsServer.AddWebSocketService<EchoService>("/echo");
-                Debug.Print(DebugLevel.WebSocket, "Assigning Log Info");
-                _httpsServer.Log.Level = LogLevel.Trace;
-                _httpsServer.Log.Output = delegate
-                {
-                    //Debug.Print(DebugLevel.WebSocket, "{1} {0}\rCaller:{2}\rMessage:{3}\rs:{4}", d.Level.ToString(), d.Date.ToString(), d.Caller.ToString(), d.Message, s);
-                };
-                Debug.Print(DebugLevel.WebSocket, "Starting");
+                ConfigureServer(_httpsServer, rootPath);
 
-                _httpsServer.OnGet += (sender, e) =>
-                {
-                    Debug.Print(DebugLevel.WebSocket, $"OnGet requesting {e.Request}");
-                    var req = e.Request;
-                    var res = e.Response;
-
-                    res.Headers.Add("Access-Control-Allow-Origin", "*");
-                    res.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-                    res.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-                    var reqPath = req.RawUrl;
-
-                    if (reqPath == "/")
-                        reqPath += "index.html";
-
-                    string localPath = Path.Combine(rootPath, reqPath.Substring(1));
-
-                    // Invoke event handler
-                    //RequestReceived.Invoke(this, localPath);
-
-                    byte[] contents;
-                    if (File.Exists(localPath))
-                    {
-                        contents = File.ReadAllBytes(localPath);
-                    }
-                    else
-                    {
-                        e.Response.StatusCode = 404;
-                        contents = Encoding.UTF8.GetBytes("Path not found " + e.Request.RawUrl);
-                    }
-
-                    var extension = Path.GetExtension(reqPath).Replace(".", "");
-                    if (!_contentTypes.TryGetValue(extension, out var contentType))
-                    {
-                        contentType = "text/html";
-                    }
-
-                    res.ContentLength64 = contents.LongLength;
-                    res.ContentType = contentType;
-
-                    res.Close(contents, true);
-                };
-
+                // Start both servers
+                _httpServer.Start();
                 _httpsServer.Start();
-                Debug.Print(DebugLevel.WebSocket, "Ready");
+
+                Debug.Print(DebugLevel.WebSocket, $"HTTP server ready at ws://localhost:{httpPort}/echo");
+                Debug.Print(DebugLevel.WebSocket, $"HTTPS server ready at wss://localhost:{httpsPort}/echo");
+
+             
             }
             catch (Exception ex)
             {
@@ -184,16 +173,73 @@ namespace SecureWss.Websockets
             }
         }
 
+        private void ConfigureServer(HttpServer server, string rootPath)
+        {
+            Debug.Print(DebugLevel.WebSocket, $"RootPath = {server.RootPath}");
+            Debug.Print(DebugLevel.WebSocket, "Adding Echo Service");
+            server.AddWebSocketService<EchoService>("/echo");
+            Debug.Print(DebugLevel.WebSocket, "Assigning Log Info");
+            server.Log.Level = LogLevel.Trace;
+            server.Log.Output = delegate
+            {
+                // Logging output
+            };
+
+            server.OnGet += (sender, e) =>
+            {
+                Debug.Print(DebugLevel.WebSocket, $"OnGet requesting {e.Request}");
+                var req = e.Request;
+                var res = e.Response;
+
+                res.Headers.Add("Access-Control-Allow-Origin", "*");
+                res.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                res.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+                var reqPath = req.RawUrl;
+                if (reqPath == "/")
+                    reqPath += "index.html";
+
+                string localPath = Path.Combine(rootPath, reqPath.Substring(1));
+                byte[] contents;
+                if (File.Exists(localPath))
+                {
+                    contents = File.ReadAllBytes(localPath);
+                }
+                else
+                {
+                    e.Response.StatusCode = 404;
+                    contents = Encoding.UTF8.GetBytes("Path not found " + e.Request.RawUrl);
+                }
+
+                var extension = Path.GetExtension(reqPath).Replace(".", "");
+                if (!_contentTypes.TryGetValue(extension, out var contentType))
+                {
+                    contentType = "text/html";
+                }
+
+                res.ContentLength64 = contents.LongLength;
+                res.ContentType = contentType;
+
+                res.Close(contents, true);
+            };
+        }
+
+
         public void Stop()
         {
-            Debug.Print(DebugLevel.Debug, "Stopping web server...");
+            Debug.Print(DebugLevel.Debug, "Stopping web servers...");
+            _httpServer?.Stop();
             _httpsServer?.Stop();
 
+            _httpServer = null;
             _httpsServer = null;
-            Debug.Print(DebugLevel.Debug, "Web server stopped.");
+            Debug.Print(DebugLevel.Debug, "Web servers stopped.");
         }
 
     }
+    /// <summary>
+    /// Basic echo service
+    /// </summary>
     public class EchoService : WebSocketBehavior
     {
         public EchoService()
@@ -225,6 +271,55 @@ namespace SecureWss.Websockets
         {
             try
             {                
+                var received = e.Data;
+                Debug.Print(DebugLevel.WebSocket, $"EchoService Received {received} and echoing back");
+                Send(received);
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(DebugLevel.Error, "WebSocket.OnMessage error {0}", ex.Message);
+            }
+        }
+        protected override void OnError(WebSocketSharp.ErrorEventArgs e)
+        {
+            Debug.Print(DebugLevel.Error, "WebSocket.OnError message {0}", e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Crestron Websocket service for message transmission
+    /// </summary>
+    public class CrestronService : WebSocketBehavior
+    {
+        public CrestronService()
+        {
+            try
+            {
+                Debug.Print(DebugLevel.WebSocket, "Crestron Websocket Service Created");
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(DebugLevel.Error, "Websocket.Constructor error {0}", ex.Message);
+            }
+        }
+
+        protected override void OnOpen()
+        {
+            try
+            {
+                base.OnOpen();
+                Debug.Print(DebugLevel.WebSocket, $"New Client Connected: {ID}");
+
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(DebugLevel.Error, "Websocket.OnOpen error {0}", ex.Message);
+            }
+        }
+        protected override void OnMessage(MessageEventArgs e)
+        {
+            try
+            {
                 var received = e.Data;
                 Debug.Print(DebugLevel.WebSocket, $"EchoService Received {received} and echoing back");
                 Send(received);

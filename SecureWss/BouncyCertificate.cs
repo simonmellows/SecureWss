@@ -1,5 +1,5 @@
 ﻿using Crestron.SimplSharp;
-
+using C5Debugger;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -51,6 +51,7 @@ namespace SecureWss
             this.ServerCertName = serverCertName;
             this.WebsocketServer = _websocketServer;
         }
+        private bool Busy { get; set; }
 
         public X509Certificate2 IssueCertificate(string subjectName, X509Certificate2 issuerCertificate, string[] subjectAlternativeNames, KeyPurposeID[] usages)
         {
@@ -149,7 +150,7 @@ namespace SecureWss
 
             // Our certificate needs valid from/to values.
             var notBefore = DateTime.Now;
-            var notAfter = notBefore.AddMinutes(10);
+            var notAfter = notBefore.AddMinutes(6);
 
             certificateGenerator.SetNotBefore(notBefore);
             certificateGenerator.SetNotAfter(notAfter);
@@ -393,6 +394,7 @@ namespace SecureWss
             string rootCertPath = $"{Path.Combine(outputDirectory, rootCertName)}";
             string serverCertPath = $"{Path.Combine(outputDirectory, serverCertName)}";
             X509Certificate2 RootCert;
+            Busy = true;
 
             try
             {
@@ -431,9 +433,7 @@ namespace SecureWss
                     // Restart the web server if it's running
                     if (_websocketServer.IsRunning)
                     {
-                        CrestronConsole.PrintLine($"Restarting the web server...");
-                        _websocketServer.Restart();
-                        CrestronConsole.PrintLine($"Web server restarted.");
+                        _websocketServer.Restart(Constants.HttpsPort);
                     }
                     else
                     {
@@ -456,9 +456,7 @@ namespace SecureWss
                         // Restart the web server if it's running
                         if (_websocketServer.IsRunning)
                         {
-                            CrestronConsole.PrintLine($"Restarting the web server...");
-                            _websocketServer.Restart();
-                            CrestronConsole.PrintLine($"Web server restarted.");
+                            _websocketServer.Restart(Constants.HttpsPort);
                         }
                         else
                         {
@@ -477,9 +475,7 @@ namespace SecureWss
                         // Restart the web server if it's running
                         if (_websocketServer.IsRunning)
                         {
-                            CrestronConsole.PrintLine($"Restarting the web server...");
-                            _websocketServer.Restart();
-                            CrestronConsole.PrintLine($"Web server restarted.");
+                            _websocketServer.Restart(Constants.HttpsPort);
                         }
                         else
                         {
@@ -492,22 +488,31 @@ namespace SecureWss
                         CrestronConsole.PrintLine($"Certificate '{serverCertPath}' is valid. Expiry date: {serverCert.NotAfter}");
                     }
                 }
+                Busy = false;
             }
             catch (Exception ex)
             {
-                CrestronConsole.PrintLine($"Failed to create and write certificates\r\n{ex.Message}");
+                Debug.Print(DebugLevel.Error, $"Failed to create and write certificates\r\n{ex.Message}");
+                Busy = false;
             }
         }
         public void CheckCertificates()
         {
-            // Check certificates every 30 seconds
-            Timer timer = new Timer(Callback, null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+            // Check certificates every 60 seconds
+            Timer timer = new Timer(Callback, null, TimeSpan.Zero, TimeSpan.FromSeconds(60));
         }
         public void Callback(object state)
         {
-            CrestronConsole.PrintLine($"Check certificates method callback called.");
-            CreateAndWriteCertificates(SubjectName, SubjectAlternativeNames, OutputDirectory, ServerCertName, WebsocketServer);
+            if (!Busy)
+            {
+                CrestronConsole.PrintLine($"Check certificates method callback called.");
+                CreateAndWriteCertificates(SubjectName, SubjectAlternativeNames, OutputDirectory, ServerCertName, WebsocketServer);
 
+            }
+            else
+            {
+                CrestronConsole.PrintLine($"Bouncy is busy...");
+            }
         }
     }
 }
