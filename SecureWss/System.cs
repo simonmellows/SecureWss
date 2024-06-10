@@ -9,7 +9,7 @@ using Crestron.SimplSharpPro.UI;
 using Newtonsoft.Json;
 using Crestron.SimplSharpPro;
 using Crestron.SimplSharp;
-
+using SecureWss.Websockets;
 
 namespace SecureWss
 {
@@ -77,8 +77,7 @@ namespace SecureWss
         public string Id { get; }
         public uint IpId { get; }
         public object Instance { get; set; }
-        public string WebSocketId { get; set; }
-
+        public CrestronService WebSocketInstance { get; set; }
 
         [JsonConstructor]
         public UserInterface(string Type, string Label, string IpId)
@@ -159,43 +158,55 @@ namespace SecureWss
                     }
                 }
             }
-        }
-
-        public void RegisterWithWebSocketServer()
-        {
-
-        }   
+        }  
 
         public void ExtenderVoipReservedSigs_DeviceExtenderSigChange(DeviceExtender currentDeviceExtender, SigEventArgs args)
         {
             //Debug.Print(DebugLevel.Debug, $"VOIP event invoked. Type: {args.Sig.Type}. Number: {args.Sig.Number}");
-            switch (args.Sig.Type)
+            if(WebSocketInstance != null)
             {
-                case eSigType.Bool:
-                    switch (args.Sig.Number)
-                    {
-                        case (uint)eVoipReservedJoins.Incoming: // Call incoming
-                            Debug.Print(DebugLevel.Debug, $"Call incoming on panel: {IpId}");
-                            break;
-                        case (uint)eVoipReservedJoins.CallActive: // Call active
-                            Debug.Print(DebugLevel.Debug, $"Call active on panel: {IpId}");
-                            break;
-                        case (uint)eVoipReservedJoins.Terminated: // Terminated
-                            Debug.Print(DebugLevel.Debug, $"Call terminated on panel: {IpId}");
-                            break;
-                        case (uint)eVoipReservedJoins.Ringing: // Ringing
-                            Debug.Print(DebugLevel.Debug, $"Panel {IpId} ringing");
-                            break;
-                        case (uint)eVoipReservedJoins.Dialing: // Dialing
-                            Debug.Print(DebugLevel.Debug, $"Panel {IpId} dialing");
-                            break;
-                    }
-                    break;
+                switch (args.Sig.Type)
+                {
+                    case eSigType.Bool:
+                        switch (args.Sig.Number)
+                        {
+                            case (uint)eVoipReservedJoins.Incoming: // Call incoming
+                                Debug.Print(DebugLevel.Debug, $"Call incoming on panel: {IpId}");
+                                //CrestronService.Clients.Find(c => c.IpId == IpId).SendMessage("Calling incoming");
+                                WebSocketInstance.SendMessage("Calling incoming");
+                                break;
+                            case (uint)eVoipReservedJoins.CallActive: // Call active
+                                Debug.Print(DebugLevel.Debug, $"Call active on panel: {IpId}");
+                                //CrestronService.Clients.Find(c => c.IpId == IpId).SendMessage("Call active");
+                                WebSocketInstance.SendMessage("Call active");
+                                break;
+                            case (uint)eVoipReservedJoins.Terminated: // Terminated
+                                Debug.Print(DebugLevel.Debug, $"Call terminated on panel: {IpId}");
+                                //CrestronService.Clients.Find(c => c.IpId == IpId).SendMessage("Call terminated");
+                                WebSocketInstance.SendMessage("Call terminated");
+                                break;
+                            case (uint)eVoipReservedJoins.Ringing: // Ringing
+                                Debug.Print(DebugLevel.Debug, $"Panel {IpId} ringing");
+                                //CrestronService.Clients.Find(c => c.IpId == IpId).SendMessage("Call ringing");
+                                WebSocketInstance.SendMessage("Call ringing");
+                                break;
+                            case (uint)eVoipReservedJoins.Dialing: // Dialing
+                                Debug.Print(DebugLevel.Debug, $"Panel {IpId} dialing");
+                                //CrestronService.Clients.Find(c => c.IpId == IpId).SendMessage("Call dialing");
+                                WebSocketInstance.SendMessage("Call dialing");
+                                break;
+                        }
+                        break;
 
-                case eSigType.String:
-                    break;
-                case eSigType.UShort:
-                    break;
+                    case eSigType.String:
+                        break;
+                    case eSigType.UShort:
+                        break;
+                }
+            }
+            else
+            {
+                Debug.Print(DebugLevel.WebSocket, $"No WebSocket service instance registered to IP ID: {IpId}");
             }
         }
 

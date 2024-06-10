@@ -335,7 +335,8 @@ namespace SecureWss.Websockets
             {
 
                 base.OnOpen();
-                Debug.Print(DebugLevel.WebSocket, $"New Client Connected: {ID}");
+                Debug.Print(DebugLevel.WebSocket, $"New Client Connected ID: {ID}");
+                Debug.Print(DebugLevel.WebSocket, $"New Client Connected User Endpoint: {Context.UserEndPoint.Address}");
                 Clients.Add(this);
                 Debug.Print(DebugLevel.WebSocket, "Client added to database");
 
@@ -359,11 +360,9 @@ namespace SecureWss.Websockets
 
                 if (source["WebSocketMethod"] != null)
                 {
-                    Debug.Print(DebugLevel.WebSocket, $"WebSocket method command:");
-
+                    Debug.Print(DebugLevel.WebSocket, $"WebSocket method received.");
                     WebSocketMethod webSocketMethod = JsonConvert.DeserializeObject<WebSocketMethod>(JsonConvert.SerializeObject(source["WebSocketMethod"]));
-
-                    InvokeMethod(webSocketMethod.Method, webSocketMethod.Parameters);
+                    ReflectionHelper.InvokeMethod(this, webSocketMethod.Method, webSocketMethod.Parameters);
                 }
                 else
                 {
@@ -382,6 +381,12 @@ namespace SecureWss.Websockets
             {
                 base.OnClose(e);
                 Debug.Print(DebugLevel.WebSocket, $"Client Disconnected: {ID}");
+                UserInterface ui = ControlSystem.MySystem.UserInterfaces.Find(u => u.WebSocketInstance.ID == ID);
+                if(ui != null)
+                {
+                    ui.WebSocketInstance = null;
+                    Debug.Print(DebugLevel.WebSocket, $"Crestron Service {ID} removed from User Interface instance with IP ID {ui.IpId}");
+                }
                 Clients.Remove(this);
                 Debug.Print(DebugLevel.WebSocket, "Client removed from database");
             }
@@ -395,34 +400,29 @@ namespace SecureWss.Websockets
             Debug.Print(DebugLevel.Error, "WebSocket.OnError message {0}", e.Message);
         }
 
-        private void InvokeMethod(string methodName, params object[] parameters)
+        // Messages to Client
+        public void SendMessage(string message)
         {
-            // Find the method in the current class by name
-            MethodInfo method = GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-
-            if (method == null)
-            {
-                Debug.Print(DebugLevel.Debug, $"Method '{methodName}' not found.");
-                return;
-            }
-
-            ParameterInfo[] methodParams = method.GetParameters();
-            // Check if the number of parameters match
-            if (methodParams.Length != parameters.Length)
-            {
-                Debug.Print(DebugLevel.Error, $"Parameter count mismatch for method '{methodName}'. Expected {methodParams.Length}, got {parameters.Length}.");
-                return;
-            }
-
-            // Invoke the method using reflection
-            method.Invoke(this, parameters);
+            Send(message);
         }
 
-        private void RegisterVoipInterface(string ipId)
+        /// <summary>
+        /// Special method to register the WebSocket service instance as a VoIP interface.
+        /// When VoIP activity occurs on a user interface, the program will search the list of connected WebSocket clients to trigger activity specific to that interface.
+        /// </summary>
+        /// <param name="ipId"></param>
+        private void RegisterWithInterface(string ipId)
         {
-            Debug.Print(DebugLevel.WebSocket, $"Registering IP ID {ipId} to WebSocket instance.");
-            Clients.Find(c => c.ID == this.ID).IpId = Convert.ToUInt32(ipId, 16);
-            Debug.Print(DebugLevel.WebSocket, $"IP ID {ipId} assigned to WebSocket instance.");
+            Debug.Print(DebugLevel.Debug, "RegisterWithInterface method called");
+            Debug.Print(DebugLevel.WebSocket, $"Registering Crestron Service {ID} to User Interface instance.");
+            //Clients.Find(c => c.ID == this.ID).IpId = Convert.ToUInt32(ipId, 16);
+            UserInterface ui = ControlSystem.MySystem.UserInterfaces.Find(u => u.IpId == Convert.ToUInt32(ipId, 16));
+            if(ui != null)
+            {
+                ui.WebSocketInstance = this;
+                Debug.Print(DebugLevel.WebSocket, $"Crestron Service {ID} assigned to User Interface instance with IP ID {Convert.ToUInt32(ipId, 16)}.");
+            }
+
         }
     }
 

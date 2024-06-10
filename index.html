@@ -11,7 +11,7 @@
         window.onload = () => {
             const _ws = new WebSocket("ws://192.168.0.50:42080/echo");
             _ws.onopen = () => {
-                _ws.send("{'WebSocketMethod': { 'Method': 'RegisterVoipInterface', 'Parameters': ['B3'] }}");
+                _ws.send("{'WebSocketMethod': { 'Method': 'RegisterWithInterface', 'Parameters': ['B3'] }}");
             };
 
             _ws.onmessage = (msg) => {

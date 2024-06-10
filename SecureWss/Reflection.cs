@@ -47,14 +47,43 @@ namespace SecureWss
             if (obj == null)
                 throw new ArgumentNullException(nameof(obj));
 
-            var method = obj.GetType().GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            if (method == null)
+            // Get all methods with the given name
+            var methods = obj.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                                     .Where(m => m.Name == methodName)
+                                     .ToArray();
+
+            if (methods.Length == 0)
                 throw new ArgumentException($"Method '{methodName}' not found on type '{obj.GetType().FullName}'.");
 
-            var methodParameters = method.GetParameters();
-            if (parameters.Length != methodParameters.Length)
-                throw new ArgumentException("Parameter count mismatch.");
+            // Find the method with matching parameter types
+            MethodInfo method = null;
+            foreach (var m in methods)
+            {
+                var innerMethodParameters = m.GetParameters();
+                if (innerMethodParameters.Length == parameters.Length)
+                {
+                    bool parametersMatch = true;
+                    for (int i = 0; i < innerMethodParameters.Length; i++)
+                    {
+                        if (parameters[i] != null && !innerMethodParameters[i].ParameterType.IsInstanceOfType(parameters[i]))
+                        {
+                            parametersMatch = false;
+                            break;
+                        }
+                    }
+                    if (parametersMatch)
+                    {
+                        method = m;
+                        break;
+                    }
+                }
+            }
 
+            if (method == null)
+                throw new ArgumentException($"No suitable method '{methodName}' found on type '{obj.GetType().FullName}' with matching parameters.");
+
+            // Convert parameters to the required types
+            var methodParameters = method.GetParameters();
             var convertedParameters = new object[parameters.Length];
             for (int i = 0; i < parameters.Length; i++)
             {
