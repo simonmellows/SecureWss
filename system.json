@@ -1,0 +1,35 @@
+{
+	"UserInterfaces": [
+		{
+			"Type": "Tsw760",
+			"Label": "Entrance Hall",
+			"IpId": "B0"
+		},
+		{
+			"Type": "Tsw770",
+			"Label": "Kitchen",
+			"IpId": "B1"
+		},
+		{
+			"Type": "Tsw770",
+			"Label": "Master Bedroom",
+			"IpId": "B2"
+		},
+		{
+			"Type": "Tsw770",
+			"Label": "First Floor Landing",
+			"IpId": "B3"
+		},
+		{
+			"Type": "iPad",
+			"Label": "Cinema",
+			"IpId": ""
+		}
+	],
+	"Areas": [
+		{
+			"ID": "Area1",
+			"Label": "Equipment Room"
+		}
+	]
+}

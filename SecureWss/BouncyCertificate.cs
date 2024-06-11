@@ -150,7 +150,7 @@ namespace SecureWss
 
             // Our certificate needs valid from/to values.
             var notBefore = DateTime.Now;
-            var notAfter = notBefore.AddMinutes(6);
+            var notAfter = notBefore.AddYears(years);
 
             certificateGenerator.SetNotBefore(notBefore);
             certificateGenerator.SetNotAfter(notAfter);
@@ -497,8 +497,8 @@ namespace SecureWss
         }
         public void CheckCertificates()
         {
-            // Check certificates every 60 seconds
-            Timer timer = new Timer(Callback, null, TimeSpan.Zero, TimeSpan.FromSeconds(60));
+            // Check certificates every 12 hours
+            Timer timer = new Timer(Callback, null, TimeSpan.Zero, TimeSpan.FromHours(12));
         }
         public void Callback(object state)
         {

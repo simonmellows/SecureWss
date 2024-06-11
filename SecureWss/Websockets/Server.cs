@@ -315,6 +315,13 @@ namespace SecureWss.Websockets
     public class CrestronService : WebSocketBehavior
     {
         public uint IpId { get; set; }
+
+        // Bool value to get whether there is a compatible registered user interface 
+        private bool RegisteredWithInterface => IpId > 0 && ControlSystem.MySystem?.UserInterfaces?.Find(u => u.IpId == IpId) != null;
+
+        // Gets the registered user interface that corresponds with this Crestron Service instance
+        private UserInterface RegisteredInterface => RegisteredWithInterface ? ControlSystem.MySystem?.UserInterfaces?.Find(u => u.IpId == IpId) : null;
+
         public static List<CrestronService> Clients = new List<CrestronService>();
 
         public CrestronService()
@@ -361,7 +368,9 @@ namespace SecureWss.Websockets
                 if (source["WebSocketMethod"] != null)
                 {
                     Debug.Print(DebugLevel.WebSocket, $"WebSocket method received.");
-                    WebSocketMethod webSocketMethod = JsonConvert.DeserializeObject<WebSocketMethod>(JsonConvert.SerializeObject(source["WebSocketMethod"]));
+                    //WebSocketMethod webSocketMethod = JsonConvert.DeserializeObject<WebSocketMethod>(JsonConvert.SerializeObject(source["WebSocketMethod"]));
+
+                    WebSocketMethod webSocketMethod = source["WebSocketMethod"].ToObject<WebSocketMethod>();
                     ReflectionHelper.InvokeMethod(this, webSocketMethod.Method, webSocketMethod.Parameters);
                 }
                 else
@@ -381,14 +390,8 @@ namespace SecureWss.Websockets
             {
                 base.OnClose(e);
                 Debug.Print(DebugLevel.WebSocket, $"Client Disconnected: {ID}");
-                UserInterface ui = ControlSystem.MySystem.UserInterfaces.Find(u => u.WebSocketInstance.ID == ID);
-                if(ui != null)
-                {
-                    ui.WebSocketInstance = null;
-                    Debug.Print(DebugLevel.WebSocket, $"Crestron Service {ID} removed from User Interface instance with IP ID {ui.IpId}");
-                }
                 Clients.Remove(this);
-                Debug.Print(DebugLevel.WebSocket, "Client removed from database");
+                Debug.Print(DebugLevel.WebSocket, $"Client {ID} removed from database");
             }
             catch (Exception ex)
             {
@@ -413,17 +416,26 @@ namespace SecureWss.Websockets
         /// <param name="ipId"></param>
         private void RegisterWithInterface(string ipId)
         {
-            Debug.Print(DebugLevel.Debug, "RegisterWithInterface method called");
-            Debug.Print(DebugLevel.WebSocket, $"Registering Crestron Service {ID} to User Interface instance.");
-            //Clients.Find(c => c.ID == this.ID).IpId = Convert.ToUInt32(ipId, 16);
-            UserInterface ui = ControlSystem.MySystem.UserInterfaces.Find(u => u.IpId == Convert.ToUInt32(ipId, 16));
-            if(ui != null)
+            try
             {
-                ui.WebSocketInstance = this;
-                Debug.Print(DebugLevel.WebSocket, $"Crestron Service {ID} assigned to User Interface instance with IP ID {Convert.ToUInt32(ipId, 16)}.");
+                Debug.Print(DebugLevel.WebSocket, $"Registering Crestron Service {ID} to User Interface instance {Convert.ToUInt32(ipId, 16)}.");
+                IpId = Convert.ToUInt32(ipId, 16);
+                Debug.Print(DebugLevel.WebSocket, $"Registered with user interface: {RegisteredWithInterface}.");
             }
-
+            catch(Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
         }
+
+        private void Answer()
+        {
+            if (RegisteredWithInterface)
+            {
+                RegisteredInterface.Answer();
+            }
+        }
+
     }
 
     public class WebSocketMethod
