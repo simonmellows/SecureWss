@@ -51,7 +51,7 @@ namespace SecureWss
 
     public class Lighting : AreaCategory
     {
-
+        public List<Load> Loads { get; set; }
     }
 
     public class Shading : AreaCategory
@@ -65,6 +65,21 @@ namespace SecureWss
     public class Scene
     {
         public string[] Actions { get; set; }
+        public string Label { get; set; }
+        public void SetScene()
+        {
+            Debug.Print(DebugLevel.Debug, $"{Label} called");
+        }
+    }
+    public class Load
+    {
+        public string Label { get; set; }
+        public bool Dimmable { get; set; }
+        public bool Switched { get; set; }
+        public void SetLevel(int level)
+        {
+            Debug.Print(DebugLevel.Debug, $"{Label} set to {level}");
+        }
     }
 
     /// <summary>
@@ -205,13 +220,45 @@ namespace SecureWss
 
         public void Answer()
         {
-            var voipExtenders = ReflectionHelper.GetPropertyValue(this.Instance, "ExtenderVoipReservedSigs");
-            ReflectionHelper.InvokeMethod(voipExtenders, "Answer");
+            try
+            {
+                Debug.Print(DebugLevel.Debug, $"Panel {IpId} answer.");
+                var voipExtenders = ReflectionHelper.GetPropertyValue(this.Instance, "ExtenderVoipReservedSigs");
+                ReflectionHelper.InvokeMethod(voipExtenders, "Answer");
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(DebugLevel.Debug, $"{ex.Message}");
+                throw ex;
+            }
+        }
+        public void Hangup()
+        {
+            try
+            {
+                Debug.Print(DebugLevel.Debug, $"Panel {IpId} hangup.");
+                var voipExtenders = ReflectionHelper.GetPropertyValue(this.Instance, "ExtenderVoipReservedSigs");
+                ReflectionHelper.InvokeMethod(voipExtenders, "Hangup");
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(DebugLevel.Debug, $"{ex.Message}");
+                throw ex;
+            }
         }
         public void DialString(string str)
         {
-            var voipExtenders = ReflectionHelper.GetPropertyValue(this.Instance, "ExtenderVoipReservedSigs");
-            ReflectionHelper.SetPropertyValue(ReflectionHelper.GetPropertyValue(voipExtenders, "DialString"), "StringValue", str);
+            try
+            {
+                Debug.Print(DebugLevel.Debug, $"Panel {IpId} dial string {str}.");
+                var voipExtenders = ReflectionHelper.GetPropertyValue(this.Instance, "ExtenderVoipReservedSigs");
+                ReflectionHelper.SetPropertyValue(ReflectionHelper.GetPropertyValue(voipExtenders, "DialString"), "StringValue", str);
+            }
+            catch(Exception ex)
+            {
+                Debug.Print(DebugLevel.Debug, $"{ex.Message}");
+                throw ex;
+            }
         }
     }
     enum eVoipReservedJoins : uint

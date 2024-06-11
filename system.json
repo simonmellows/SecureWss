@@ -29,7 +29,27 @@
 	"Areas": [
 		{
 			"ID": "Area1",
-			"Label": "Equipment Room"
+			"Label": "Equipment Room",
+			"Lighting": {
+				"Scenes": [
+					{
+						"Label": "Scene 1"
+					},
+					{
+						"Label": "Scene 2"
+					}
+				],
+				"Loads": [
+					{
+						"Label": "Downlights",
+						"Dimmable": true
+					},
+					{
+						"Label": "Downlights",
+						"Switched": true
+					}
+				]
+			}
 		}
 	]
 }

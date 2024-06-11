@@ -340,13 +340,11 @@ namespace SecureWss.Websockets
         {
             try
             {
-
                 base.OnOpen();
                 Debug.Print(DebugLevel.WebSocket, $"New Client Connected ID: {ID}");
                 Debug.Print(DebugLevel.WebSocket, $"New Client Connected User Endpoint: {Context.UserEndPoint.Address}");
                 Clients.Add(this);
                 Debug.Print(DebugLevel.WebSocket, "Client added to database");
-
             }
             catch (Exception ex)
             {
@@ -361,22 +359,22 @@ namespace SecureWss.Websockets
                 Debug.Print(DebugLevel.WebSocket, $"CrestronService Received {received}");
 
                 // Assign data as a JSON object and merge received JSON object into core feedback
-                JObject source = JObject.Parse(received);
+                //JObject source = JObject.Parse(received);
 
-                Debug.Print(DebugLevel.WebSocket, $"Received JSON: {source}");
+                //Debug.Print(DebugLevel.WebSocket, $"Received JSON: {source}");
 
-                if (source["WebSocketMethod"] != null)
+                /*if (source["WebSocketMethod"] != null)
                 {
                     Debug.Print(DebugLevel.WebSocket, $"WebSocket method received.");
-                    //WebSocketMethod webSocketMethod = JsonConvert.DeserializeObject<WebSocketMethod>(JsonConvert.SerializeObject(source["WebSocketMethod"]));
-
                     WebSocketMethod webSocketMethod = source["WebSocketMethod"].ToObject<WebSocketMethod>();
                     ReflectionHelper.InvokeMethod(this, webSocketMethod.Method, webSocketMethod.Parameters);
-                }
-                else
-                {
+                }*/
+                //else
+                //{
                     Debug.Print(DebugLevel.WebSocket, $"System command received.");
-                }
+                // Go to command router
+                    Database.InvokeByDotNotation(ControlSystem.MySystem, received);
+                //}
             }
             catch (Exception ex)
             {
@@ -385,7 +383,6 @@ namespace SecureWss.Websockets
         }
         protected override void OnClose(CloseEventArgs e)
         {
-
             try
             {
                 base.OnClose(e);
@@ -410,8 +407,9 @@ namespace SecureWss.Websockets
         }
 
         /// <summary>
-        /// Special method to register the WebSocket service instance as a VoIP interface.
-        /// When VoIP activity occurs on a user interface, the program will search the list of connected WebSocket clients to trigger activity specific to that interface.
+        /// Special method to register the WebSocket service instance with a user interfaxe.
+        /// When activity specific to a user interface occurs, the program will search 
+        /// the list of connected WebSocket clients to trigger activity specific to that interface.
         /// </summary>
         /// <param name="ipId"></param>
         private void RegisterWithInterface(string ipId)
@@ -427,15 +425,6 @@ namespace SecureWss.Websockets
                 throw new Exception(ex.Message);
             }
         }
-
-        private void Answer()
-        {
-            if (RegisteredWithInterface)
-            {
-                RegisteredInterface.Answer();
-            }
-        }
-
     }
 
     public class WebSocketMethod
@@ -443,4 +432,6 @@ namespace SecureWss.Websockets
         public string Method { get; set; }
         public object[] Parameters { get; set; }
     }
+
+
 }

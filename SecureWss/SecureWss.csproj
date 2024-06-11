@@ -146,6 +146,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BouncyCertificate.cs" />
+    <Compile Include="Database.cs" />
     <Compile Include="System.cs" />
     <Compile Include="Reflection.cs" />
     <Compile Include="ControlSystem.cs" />

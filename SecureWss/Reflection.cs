@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using C5Debugger;
 
 namespace SecureWss
 {
@@ -14,7 +15,7 @@ namespace SecureWss
             if (obj == null)
                 throw new ArgumentNullException(nameof(obj));
 
-            var property = obj.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            var property = obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).FirstOrDefault(p => p.Name == propertyName);
             if (property == null)
                 throw new ArgumentException($"Property '{propertyName}' not found on type '{obj.GetType().FullName}'.");
 
@@ -25,7 +26,7 @@ namespace SecureWss
             if (obj == null)
                 throw new ArgumentNullException(nameof(obj));
 
-            var property = obj.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            var property = obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).FirstOrDefault(p => p.Name == propertyName);
             if (property == null)
                 throw new ArgumentException($"Property '{propertyName}' not found on type '{obj.GetType().FullName}'.");
 
@@ -55,26 +56,37 @@ namespace SecureWss
             if (methods.Length == 0)
                 throw new ArgumentException($"Method '{methodName}' not found on type '{obj.GetType().FullName}'.");
 
-            // Find the method with matching parameter types
+            // Nullify a MethodInfo object
             MethodInfo method = null;
-            foreach (var m in methods)
+
+            // If there is only 1 method, use this method
+            if (methods.Length == 1)
             {
-                var innerMethodParameters = m.GetParameters();
-                if (innerMethodParameters.Length == parameters.Length)
+                method = methods[0];
+            }
+            // If there are multiple methods overloads, find the method with matching parameter types
+            else
+            {
+                foreach (var m in methods)
                 {
-                    bool parametersMatch = true;
-                    for (int i = 0; i < innerMethodParameters.Length; i++)
+                    var innerMethodParameters = m.GetParameters();
+                    if (innerMethodParameters.Length == parameters.Length)
                     {
-                        if (parameters[i] != null && !innerMethodParameters[i].ParameterType.IsInstanceOfType(parameters[i]))
+                        bool parametersMatch = true;
+                        for (int i = 0; i < innerMethodParameters.Length; i++)
                         {
-                            parametersMatch = false;
+                            if (parameters[i] != null && !innerMethodParameters[i].ParameterType.IsInstanceOfType(parameters[i]))
+                            {
+                                Debug.Print(DebugLevel.Debug, $"Converting parameter {parameters[i]} of type {parameters[i].GetType()} to {innerMethodParameters[i].ParameterType}.");
+                                parametersMatch = false;
+                                break;
+                            }
+                        }
+                        if (parametersMatch)
+                        {
+                            method = m;
                             break;
                         }
-                    }
-                    if (parametersMatch)
-                    {
-                        method = m;
-                        break;
                     }
                 }
             }
