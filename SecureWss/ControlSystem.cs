@@ -36,6 +36,7 @@ namespace SecureWss
     {
         private Dictionary<string, ConsoleCommand> _consoleCommands;
         private Server _websocketServer;
+        private WebSocketIntersystem _intersystemWebsocketServer;
         //private SipWebSocketServer _sipWebsocketServer;
         private const string _certificateName = "selfCres";
         private const string _certificatePassword = "cres12345";
@@ -90,6 +91,7 @@ namespace SecureWss
             {
                 // Create a secure WebSocket server on port 42081 and unsecure WebSocket server on port 42080
                 _websocketServer = new Server(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
+                _intersystemWebsocketServer = new WebSocketIntersystem(42089);
 
                 ControlSystem.ThisControlSystem = this;
                 Debug.Name = "WebSocket Secure Test";
@@ -113,7 +115,9 @@ namespace SecureWss
                 {
                     CreateCert(null);
                     _websocketServer.Start();
+                    _intersystemWebsocketServer.Start();
                     Debug.Print(DebugLevel.Debug, "Certificate and websocket task complete");
+
                 });
 
                 // Task for JSON config deserialization

@@ -260,54 +260,6 @@ namespace SecureWss.Websockets
         }
 
     }
-    /// <summary>
-    /// Basic echo service
-    /// </summary>
-    public class EchoService : WebSocketBehavior
-    {
-        public EchoService()
-        {
-            try
-            {
-                Debug.Print(DebugLevel.WebSocket, "Echo Service Created");
-            }
-            catch (Exception ex)
-            {
-                Debug.Print(DebugLevel.Error, "Websocket.Constructor error {0}", ex.Message);
-            }
-        }
-
-        protected override void OnOpen()
-        {
-            try
-            {
-                base.OnOpen();
-                Debug.Print(DebugLevel.WebSocket, $"New Client Connected: {ID}");
-
-            }
-            catch (Exception ex)
-            {
-                Debug.Print(DebugLevel.Error, "Websocket.OnOpen error {0}", ex.Message);
-            }
-        }
-        protected override void OnMessage(MessageEventArgs e)
-        {
-            try
-            {
-                var received = e.Data;
-                Debug.Print(DebugLevel.WebSocket, $"EchoService Received {received} and echoing back");
-                Send(received);
-            }
-            catch (Exception ex)
-            {
-                Debug.Print(DebugLevel.Error, "WebSocket.OnMessage error {0}", ex.Message);
-            }
-        }
-        protected override void OnError(WebSocketSharp.ErrorEventArgs e)
-        {
-            Debug.Print(DebugLevel.Error, "WebSocket.OnError message {0}", e.Message);
-        }
-    }
 
     /// <summary>
     /// Crestron Websocket service for message transmission
@@ -328,11 +280,11 @@ namespace SecureWss.Websockets
         {
             try
             {
-                Debug.Print(DebugLevel.WebSocket, "Crestron Websocket Service Created");
+                Debug.Print(DebugLevel.WebSocket, "Crestron service created");
             }
             catch (Exception ex)
             {
-                Debug.Print(DebugLevel.Error, "Websocket.Constructor error {0}", ex.Message);
+                Debug.Print(DebugLevel.Error, "CrestronService.Constructor error {0}", ex.Message);
             }
         }
 
@@ -341,14 +293,12 @@ namespace SecureWss.Websockets
             try
             {
                 base.OnOpen();
-                Debug.Print(DebugLevel.WebSocket, $"New Client Connected ID: {ID}");
-                Debug.Print(DebugLevel.WebSocket, $"New Client Connected User Endpoint: {Context.UserEndPoint.Address}");
+                Debug.Print(DebugLevel.WebSocket, $"New user interface with ID {ID} connected from IP address: {Context.UserEndPoint.Address}");
                 Clients.Add(this);
-                Debug.Print(DebugLevel.WebSocket, "Client added to database");
             }
             catch (Exception ex)
             {
-                Debug.Print(DebugLevel.Error, "Websocket.OnOpen error {0}", ex.Message);
+                Debug.Print(DebugLevel.Error, "CrestronService.OnOpen error {0}", ex.Message);
             }
         }
         protected override void OnMessage(MessageEventArgs e)
