@@ -15,6 +15,9 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using WebSocketSharp;
+using WebSocketSharp.Server;
 
 namespace SecureWss
 {
@@ -42,6 +45,8 @@ namespace SecureWss
         private const string _certificatePassword = "cres12345";
         public static ControlSystem ThisControlSystem;
         public static SystemConfig MySystem;
+        public static JObject State = new JObject();
+
         /// <summary>
         /// ControlSystem Constructor. Starting point for the SIMPL#Pro program.
         /// Use the constructor to:
@@ -89,6 +94,7 @@ namespace SecureWss
         {
             try
             {
+                var ipAddress = CrestronEthernetHelper.GetEthernetParameter(CrestronEthernetHelper.ETHERNET_PARAMETER_TO_GET.GET_CURRENT_IP_ADDRESS, 0);
                 // Create a secure WebSocket server on port 42081 and unsecure WebSocket server on port 42080
                 _websocketServer = new Server(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
                 _intersystemWebsocketServer = new WebSocketIntersystem(42089);
@@ -113,6 +119,7 @@ namespace SecureWss
                 // Task for HTTP and WebSocket setup
                 Task.Run(() =>
                 {
+                    CrestronConsole.PrintLine("Creating certificate...");
                     CreateCert(null);
                     _websocketServer.Start();
                     _intersystemWebsocketServer.Start();
@@ -121,7 +128,7 @@ namespace SecureWss
                 });
 
                 // Task for JSON config deserialization
-                Task.Run(() =>
+                /*Task.Run(() =>
                 {
                     Debug.Print(DebugLevel.Debug, $"Deserializing JSON...");
                     var json = File.ReadAllText(@"\user/config/system.json");
@@ -147,7 +154,7 @@ namespace SecureWss
                             Debug.Print(DebugLevel.Debug, $"{area.Label}");
                         }
                     }
-                });
+                });*/
             }
             catch (Exception e)
             {

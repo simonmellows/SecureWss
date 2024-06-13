@@ -8,7 +8,7 @@
 <body>
     <button onclick="answer()">Answer</button>
     <script type="text/javascript">
-        const _ws = new WebSocket("wss://192.168.0.50:42081/echo");
+        const _ws = new WebSocket("wss://192.168.14.22:42081/echo");
         window.onload = () => {
             
             _ws.onopen = () => {
@@ -16,7 +16,8 @@
             };
 
             _ws.onmessage = (msg) => {
-                console.log(msg);
+                //console.log(msg.data);
+                console.log(JSON.parse(msg.data));
             };
 
             _ws.onclose = () => {
@@ -25,7 +26,20 @@
         }
         function answer(){
             console.log("Answer");
-            _ws.send("UserInterfaces[0].Answer()")
+            const obj = {
+                "Areas": {
+                    "0": {
+                        "Lights": {
+                            "Scenes": {
+                                "0": {
+                                    "SetScene": null
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            _ws.send(JSON.stringify(obj))
         }
     </script>
 </body>

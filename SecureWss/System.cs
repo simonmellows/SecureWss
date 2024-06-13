@@ -94,10 +94,10 @@ namespace SecureWss
         public object Instance { get; set; }
 
         // Bool value to get whether there is a compatible registered WebSocket instance
-        public bool RegisteredWithWebSocketInstance => IpId > 0 && CrestronService.Clients?.Find(c => c.IpId == IpId) != null;
+        public bool RegisteredWithWebSocketInstance => IpId > 0 && UIService.Clients?.Find(c => c.IpId == IpId) != null;
 
         // Gets the registered user WebSocket service that corresponds with this User Interface instance
-        public CrestronService RegisteredWebSocketInstance => RegisteredWithWebSocketInstance ? CrestronService.Clients?.Find(c => c.IpId == IpId) : null;
+        public UIService RegisteredWebSocketInstance => RegisteredWithWebSocketInstance ? UIService.Clients?.Find(c => c.IpId == IpId) : null;
 
         [JsonConstructor]
         public UserInterface(string Type, string Label, string IpId)

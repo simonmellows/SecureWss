@@ -182,7 +182,7 @@ namespace SecureWss.Websockets
         {
             Debug.Print(DebugLevel.WebSocket, $"RootPath = {server.RootPath}");
             Debug.Print(DebugLevel.WebSocket, "Adding Echo Service");
-            server.AddWebSocketService<CrestronService>("/echo");
+            server.AddWebSocketService<UIService>("/echo");
             Debug.Print(DebugLevel.WebSocket, "Assigning Log Info");
             server.Log.Level = LogLevel.Trace;
             server.Log.Output = delegate
@@ -264,7 +264,7 @@ namespace SecureWss.Websockets
     /// <summary>
     /// Crestron Websocket service for message transmission
     /// </summary>
-    public class CrestronService : WebSocketBehavior
+    public class UIService : WebSocketBehavior
     {
         public uint IpId { get; set; }
 
@@ -272,11 +272,27 @@ namespace SecureWss.Websockets
         private bool RegisteredWithInterface => IpId > 0 && ControlSystem.MySystem?.UserInterfaces?.Find(u => u.IpId == IpId) != null;
 
         // Gets the registered user interface that corresponds with this Crestron Service instance
-        private UserInterface RegisteredInterface => RegisteredWithInterface ? ControlSystem.MySystem?.UserInterfaces?.Find(u => u.IpId == IpId) : null;
+        public UserInterface RegisteredInterface => RegisteredWithInterface ? ControlSystem.MySystem?.UserInterfaces?.Find(u => u.IpId == IpId) : null;
 
-        public static List<CrestronService> Clients = new List<CrestronService>();
+        public static List<UIService> Clients = new List<UIService>();
 
-        public CrestronService()
+        public static void BroadcastData(string data)
+        {
+            try
+            {
+                Debug.Print(DebugLevel.WebSocket, "Broadcasting data to all clients.");
+                foreach (var client in Clients)
+                {
+                    client.Send(data);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.Print(DebugLevel.WebSocket, $"Error broadcasting to clients: {ex.Message}");
+            }
+        }
+
+        public UIService()
         {
             try
             {
@@ -284,7 +300,7 @@ namespace SecureWss.Websockets
             }
             catch (Exception ex)
             {
-                Debug.Print(DebugLevel.Error, "CrestronService.Constructor error {0}", ex.Message);
+                Debug.Print(DebugLevel.Error, "UIService.Constructor error {0}", ex.Message);
             }
         }
 
@@ -295,36 +311,36 @@ namespace SecureWss.Websockets
                 base.OnOpen();
                 Debug.Print(DebugLevel.WebSocket, $"New user interface with ID {ID} connected from IP address: {Context.UserEndPoint.Address}");
                 Clients.Add(this);
+                Debug.Print(DebugLevel.WebSocket, $"Client {ID} added.");
+                Send(JsonConvert.SerializeObject(ControlSystem.State));
             }
             catch (Exception ex)
             {
-                Debug.Print(DebugLevel.Error, "CrestronService.OnOpen error {0}", ex.Message);
+                Debug.Print(DebugLevel.Error, "UIService.OnOpen error {0}", ex.Message);
             }
         }
         protected override void OnMessage(MessageEventArgs e)
         {
             try
             {
-                var received = e.Data;
-                Debug.Print(DebugLevel.WebSocket, $"CrestronService Received {received}");
+                Debug.Print(DebugLevel.WebSocket, $"UIService Received {e.Data}");
+                JObject data = JObject.Parse(e.Data);
 
-                // Assign data as a JSON object and merge received JSON object into core feedback
-                //JObject source = JObject.Parse(received);
-
-                //Debug.Print(DebugLevel.WebSocket, $"Received JSON: {source}");
-
-                /*if (source["WebSocketMethod"] != null)
+                // Register the client with a user interface if an IP ID was sent
+                RegistrationToken registrationToken = JsonConvert.DeserializeObject<RegistrationToken>(e.Data);
+                if (IsRegistrationToken(data))
                 {
-                    Debug.Print(DebugLevel.WebSocket, $"WebSocket method received.");
-                    WebSocketMethod webSocketMethod = source["WebSocketMethod"].ToObject<WebSocketMethod>();
-                    ReflectionHelper.InvokeMethod(this, webSocketMethod.Method, webSocketMethod.Parameters);
-                }*/
-                //else
-                //{
-                    Debug.Print(DebugLevel.WebSocket, $"System command received.");
-                // Go to command router
-                    Database.InvokeByDotNotation(ControlSystem.MySystem, received);
-                //}
+                    Debug.Print(DebugLevel.WebSocket, $"Client registration token received.");
+                    IpId = registrationToken.IpId;
+                    Debug.Print(DebugLevel.WebSocket, $"New client registered with user interface on IP ID {IpId}");
+                    return;
+                }
+
+                List<Cmdlet> cmdlets = Utility.ConvertObjectToCmdlets(data);
+                foreach(Cmdlet cmdlet in cmdlets)
+                {
+                    IntersystemService.SendData(cmdlet);
+                }
             }
             catch (Exception ex)
             {
@@ -356,24 +372,21 @@ namespace SecureWss.Websockets
             Send(message);
         }
 
-        /// <summary>
-        /// Special method to register the WebSocket service instance with a user interfaxe.
-        /// When activity specific to a user interface occurs, the program will search 
-        /// the list of connected WebSocket clients to trigger activity specific to that interface.
-        /// </summary>
-        /// <param name="ipId"></param>
-        private void RegisterWithInterface(string ipId)
+        private class RegistrationToken
         {
-            try
+            public uint IpId;
+
+            public RegistrationToken(string ipId)
             {
-                Debug.Print(DebugLevel.WebSocket, $"Registering Crestron Service {ID} to User Interface instance {Convert.ToUInt32(ipId, 16)}.");
                 IpId = Convert.ToUInt32(ipId, 16);
-                Debug.Print(DebugLevel.WebSocket, $"Registered with user interface: {RegisteredWithInterface}.");
             }
-            catch(Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
+        }
+
+        // Methods for check for special data types
+        private bool IsRegistrationToken(JObject json)
+        {
+            // Example of a simple check
+            return json["IpId"] != null;
         }
     }
 
