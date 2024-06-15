@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using Crestron.SimplSharpPro;
 using Crestron.SimplSharp;
 using SecureWss.Websockets;
+using Crestron.SimplSharpPro.Lighting.Din;
 
 namespace SecureWss
 {
@@ -17,6 +18,9 @@ namespace SecureWss
     {
         public List<UserInterface> UserInterfaces { get; set; }
         public List<Area> Areas { get; set; }
+
+        public Din1DimU4 din1DimU4 = new Din1DimU4(3, ControlSystem.ThisControlSystem);
+        
 
         // Parameterless constructor
         public SystemConfig()

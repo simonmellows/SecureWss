@@ -74,6 +74,16 @@ namespace SecureWss
                 }
             }
         }
+
+        /// <summary>
+        /// Method to ascertain whether the data object is of cmdlet format
+        /// </summary>
+        /// <param name="obj">JSON object to query</param>
+        /// <returns></returns>
+        public static bool IsCmdlet(JObject obj)
+        {
+            return obj["Command"] != null && obj["Value"] != null;
+        } 
     }
     public class Cmdlet
     {
@@ -86,11 +96,29 @@ namespace SecureWss
         }
     }
 
-    public enum eCrestronValueType
+    public class Database
     {
-        Digital,
-        Analog,
-        Serial,
-        None
+        /// <summary>
+        /// JSON object containing the current system state
+        /// </summary>
+        public JObject State = new JObject();
+
+        /// <summary>
+        /// Method to query the JSON state
+        /// </summary>
+        /// <param name="path">Path in dot notation format to get the value from</param>
+        /// <returns></returns>
+        public object Query(string path)
+        {
+            return State.SelectToken(path);
+        }
+        /// <summary>
+        /// Method to submit data to the state
+        /// </summary>
+        /// <param name="obj">JSON object to merge with the state</param>
+        public void SubmitData(JObject obj)
+        {
+            Utility.MergeJsonObjects(State, obj);
+        }
     }
 }

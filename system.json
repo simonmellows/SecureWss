@@ -30,6 +30,11 @@
 		{
 			"ID": "Area1",
 			"Label": "Equipment Room",
+			"Devices": [
+			{
+				"Type": "Din1Dimu4"
+			}
+			]
 			"Lighting": {
 				"Scenes": [
 					{

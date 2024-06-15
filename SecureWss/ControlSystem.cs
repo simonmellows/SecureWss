@@ -27,6 +27,7 @@ namespace SecureWss
         public const int HttpPort = 42080;
         public const int HttpsPort = 42081;
         public const string RootCertName = "RootCA";
+        public const bool EnableDebugging = true;
     }
 
     public class ConsoleCommand
@@ -39,13 +40,12 @@ namespace SecureWss
     {
         private Dictionary<string, ConsoleCommand> _consoleCommands;
         private Server _websocketServer;
-        private WebSocketIntersystem _intersystemWebsocketServer;
-        //private SipWebSocketServer _sipWebsocketServer;
+        private Intersystem _intersystemWebsocketServer;
         private const string _certificateName = "selfCres";
         private const string _certificatePassword = "cres12345";
         public static ControlSystem ThisControlSystem;
         public static SystemConfig MySystem;
-        public static JObject State = new JObject();
+        public static Database Database = new Database();
 
         /// <summary>
         /// ControlSystem Constructor. Starting point for the SIMPL#Pro program.
@@ -97,7 +97,7 @@ namespace SecureWss
                 var ipAddress = CrestronEthernetHelper.GetEthernetParameter(CrestronEthernetHelper.ETHERNET_PARAMETER_TO_GET.GET_CURRENT_IP_ADDRESS, 0);
                 // Create a secure WebSocket server on port 42081 and unsecure WebSocket server on port 42080
                 _websocketServer = new Server(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
-                _intersystemWebsocketServer = new WebSocketIntersystem(42089);
+                _intersystemWebsocketServer = new Intersystem(42089);
 
                 ControlSystem.ThisControlSystem = this;
                 Debug.Name = "WebSocket Secure Test";
@@ -119,16 +119,16 @@ namespace SecureWss
                 // Task for HTTP and WebSocket setup
                 Task.Run(() =>
                 {
-                    CrestronConsole.PrintLine("Creating certificate...");
+                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, "Creating certificate...");
                     CreateCert(null);
                     _websocketServer.Start();
                     _intersystemWebsocketServer.Start();
-                    Debug.Print(DebugLevel.Debug, "Certificate and websocket task complete");
+                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, "Certificate and websocket task complete");
 
                 });
 
                 // Task for JSON config deserialization
-                /*Task.Run(() =>
+                Task.Run(() =>
                 {
                     Debug.Print(DebugLevel.Debug, $"Deserializing JSON...");
                     var json = File.ReadAllText(@"\user/config/system.json");
@@ -154,7 +154,7 @@ namespace SecureWss
                             Debug.Print(DebugLevel.Debug, $"{area.Label}");
                         }
                     }
-                });*/
+                });
             }
             catch (Exception e)
             {
@@ -174,14 +174,14 @@ namespace SecureWss
                         if (_consoleCommands.TryGetValue(args[0].ToLower(), out ConsoleCommand command))
                             command.Action.Invoke(args.Skip(1).ToArray());
                         else
-                            Debug.Print(DebugLevel.Error, $"No such command: {args[0]} found. Use wss GetCommands to see a list of supported commands.");
+                            if(Constants.EnableDebugging) Debug.Print(DebugLevel.Error, $"No such command: {args[0]} found. Use wss GetCommands to see a list of supported commands.");
                     }
                     else
-                        Debug.Print(DebugLevel.Debug, $"Please supply a command");
+                        if (Constants.EnableDebugging)  Debug.Print(DebugLevel.Debug, $"Please supply a command");
                 }
                 catch (Exception ex)
                 {
-                    Debug.Print(DebugLevel.Error, $"CommandProcessor Unknown Error: {ex.Message}");
+                    if (Constants.EnableDebugging)  Debug.Print(DebugLevel.Error, $"CommandProcessor Unknown Error: {ex.Message}");
                 }
             });
         }
@@ -255,10 +255,12 @@ namespace SecureWss
                 utility.CreateAndWriteCertificates($"CN={hostName}.{domainName}", new[] { $"{hostName}.{domainName}", ipAddress }, @"\user\", _certificateName, _websocketServer);
                 utility.CheckCertificates();
                 Debug.Print($"CreateCert Ending CreateCert");
+
             }
             catch (Exception ex)
             {
-                CrestronConsole.PrintLine($"WSS CreateCert Failed\r\n{ex.Message}\r\n{ex.StackTrace}");
+                Debug.Print(DebugLevel.Debug, $"WSS CreateCert Failed\r\n{ex.Message}\r\n{ex.StackTrace}");
+                ErrorLog.Error($"WSS CreateCert Failed\r\n{ex.Message}\r\n{ex.StackTrace}");
             }
         }
 

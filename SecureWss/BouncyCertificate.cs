@@ -22,6 +22,10 @@ using Org.BouncyCastle.Crypto.Operators;
 using SecureWss.Websockets;
 using System.Threading;
 
+//using System.Security.Cryptography.X509Certificates;
+using Org.BouncyCastle.OpenSsl;
+
+
 namespace SecureWss
 {
     /// <summary>
@@ -160,7 +164,9 @@ namespace SecureWss
 
             AddAuthorityKeyIdentifier(certificateGenerator, issuerDN, issuerKeyPair, issuerSerialNumber);
             AddSubjectKeyIdentifier(certificateGenerator, subjectKeyPair);
-            //AddBasicConstraints(certificateGenerator, isCertificateAuthority);
+
+            Debug.Print($"Adding basic constraints. isCertificateAuthority: {isCertificateAuthority}");
+            AddBasicConstraints(certificateGenerator, isCertificateAuthority);
 
             if (usages != null && usages.Any())
                 AddExtendedKeyUsage(certificateGenerator, usages);
@@ -344,6 +350,8 @@ namespace SecureWss
         {
             // This password is the one attached to the PFX file. Use 'null' for no password.
             // Create PFX (PKCS #12) with private key
+            string serverDirectory = @"\user\html\";
+
             try
             {
                 var pfx = certificate.Export(X509ContentType.Pfx, CertificatePassword);
@@ -351,7 +359,8 @@ namespace SecureWss
             }
             catch (Exception ex)
             {
-                CrestronConsole.PrintLine($"Failed to write x509 cert pfx\r\n{ex.Message}");
+                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Failed to write x509 cert pfx\r\n{ex.Message}");
+                ErrorLog.Error($"Failed to write x509 cert pfx\r\n{ex.Message}");
             }
             // Create Base 64 encoded CER (public key only)
             using (var writer = new StreamWriter($"{Path.Combine(outputDirectory, certName)}.cer", false))
@@ -363,7 +372,8 @@ namespace SecureWss
                 }
                 catch (Exception ex)
                 {
-                    CrestronConsole.PrintLine($"Failed to write x509 cert cer\r\n{ex.Message}");
+                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Failed to write x509 cert cer\r\n{ex.Message}");
+                    ErrorLog.Error($"Failed to write x509 cert cer\r\n{ex.Message}");
                 }
             }
         }
@@ -382,7 +392,8 @@ namespace SecureWss
             }
             catch (Exception ex)
             {
-                CrestronConsole.PrintLine($"AddCertToStore Failed\r\n{ex.Message}\r\n{ex.StackTrace}");
+                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"AddCertToStore Failed\r\n{ex.Message}\r\n{ex.StackTrace}");
+                ErrorLog.Error($"AddCertToStore Failed\r\n{ex.Message}\r\n{ex.StackTrace}");
             }
 
             return bRet;
@@ -397,37 +408,37 @@ namespace SecureWss
 
             try
             {
-                CrestronConsole.PrintLine($"Root cert creation/retrieval starting...");
+                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Root cert creation/retrieval starting...");
                 // If the root certificate doesn't already exist
                 if (!File.Exists($"{rootCertPath}.pfx"))
                 {
                     // Create the root certificate
-                    CrestronConsole.PrintLine($"Creating new root certificate...");
+                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Creating new root certificate...");
                     RootCert = CreateCertificateAuthorityCertificate("CN=Cornflake", null, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
                     WriteCertificate(RootCert, outputDirectory, Constants.RootCertName);
                 }
                 else
                 {
-                    CrestronConsole.PrintLine($"Getting existing root certificate...");
+                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Getting existing root certificate...");
                     RootCert = new X509Certificate2($"{rootCertPath}.pfx", CertificatePassword, X509KeyStorageFlags.Exportable);
-                    CrestronConsole.PrintLine($"Root certificate retrieved. Expiry date: {RootCert.NotAfter}");
+                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Root certificate retrieved. Expiry date: {RootCert.NotAfter}");
                 }
 
                 if (RootCert == null)
                 {
-                    CrestronConsole.PrintLine($"ERROR: No root certificate");
+                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"ERROR: No root certificate");
                     throw new Exception("ERROR: No root certificate");
                 }
-                CrestronConsole.PrintLine($"Root cert creation/retrieval complete.");
+                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Root cert creation/retrieval complete.");
 
                 // If the server certificate doesn't already exist
                 if (!File.Exists($"{serverCertPath}.pfx"))
                 {
                     // Create the server certificate signed by the root certificate
-                    CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate.");
+                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Creating new server certificate and signing with root certificate.");
                     var serverCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
                     WriteCertificate(serverCert, outputDirectory, serverCertName);
-                    CrestronConsole.PrintLine($"New server certificate created.");
+                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"New server certificate created.");
 
                     // Restart the web server if it's running
                     if (_websocketServer.HttpsIsRunning)
@@ -436,7 +447,7 @@ namespace SecureWss
                     }
                     else
                     {
-                        CrestronConsole.PrintLine($"Web server is not running.");
+                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Web server is not running.");
                     }
                 }
                 // Otherwise check its date
@@ -446,11 +457,11 @@ namespace SecureWss
                     // If the certificate is out of date
                     if (serverCert.NotAfter < DateTime.Now)
                     {
-                        CrestronConsole.PrintLine($"Certificate '{serverCertPath}.pfx' has expired. Expiry date: {serverCert.NotAfter}");
-                        CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate.");
+                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Certificate '{serverCertPath}.pfx' has expired. Expiry date: {serverCert.NotAfter}");
+                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Creating new server certificate and signing with root certificate.");
                         var newServerCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
                         WriteCertificate(newServerCert, outputDirectory, serverCertName);
-                        CrestronConsole.PrintLine($"New server certificate created.");
+                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"New server certificate created.");
 
                         // Restart the web server if it's running
                         if (_websocketServer.HttpsIsRunning)
@@ -459,17 +470,17 @@ namespace SecureWss
                         }
                         else
                         {
-                            CrestronConsole.PrintLine($"Web server is not running.");
+                            if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Web server is not running.");
                         }
                     }
                     // Otherwise if it's within 3 days of expiry
                     else if (serverCert.NotAfter < DateTime.Now.AddMinutes(3))
                     {
-                        CrestronConsole.PrintLine($"Certificate '{serverCertPath}.pfx' expires within 3 days. Expiry date: {serverCert.NotAfter}");
-                        CrestronConsole.PrintLine($"Creating new server certificate and signing with root certificate.");
+                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Certificate '{serverCertPath}.pfx' expires within 3 days. Expiry date: {serverCert.NotAfter}");
+                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Creating new server certificate and signing with root certificate.");
                         var newServerCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
                         WriteCertificate(newServerCert, outputDirectory, serverCertName);
-                        CrestronConsole.PrintLine($"New server certificate created.");
+                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"New server certificate created.");
 
                         // Restart the web server if it's running
                         if (_websocketServer.HttpsIsRunning)
@@ -478,13 +489,13 @@ namespace SecureWss
                         }
                         else
                         {
-                            CrestronConsole.PrintLine($"Web server is not running.");
+                            if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Web server is not running.");
                         }
                     }
                     // Otherwise if its valid
                     else
                     {
-                        CrestronConsole.PrintLine($"Certificate '{serverCertPath}' is valid. Expiry date: {serverCert.NotAfter}");
+                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Certificate '{serverCertPath}' is valid. Expiry date: {serverCert.NotAfter}");
                     }
                 }
                 Busy = false;
@@ -492,6 +503,7 @@ namespace SecureWss
             catch (Exception ex)
             {
                 Debug.Print(DebugLevel.Error, $"Failed to create and write certificates\r\n{ex.Message}");
+                ErrorLog.Error($"Failed to create and write certificates\r\n{ex.Message}");
                 Busy = false;
             }
         }
@@ -504,13 +516,13 @@ namespace SecureWss
         {
             if (!Busy)
             {
-                CrestronConsole.PrintLine($"Check certificates method callback called.");
+                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Check certificates method callback called.");
                 CreateAndWriteCertificates(SubjectName, SubjectAlternativeNames, OutputDirectory, ServerCertName, WebsocketServer);
 
             }
             else
             {
-                CrestronConsole.PrintLine($"Bouncy is busy...");
+                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Bouncy is busy...");
             }
         }
     }
