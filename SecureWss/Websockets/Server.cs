@@ -346,7 +346,13 @@ namespace SecureWss.Websockets
                 if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"New user interface with ID {ID} connected from IP address: {Context.UserEndPoint.Address}");
                 Clients.Add(this);
                 if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Client {ID} added.");
+                // Send this program's database state
                 Send(JsonConvert.SerializeObject(ControlSystem.Database.State));
+                // Iterate through all intersystem database states and send those
+                foreach(IntersystemService intersystem in IntersystemService.Intersystems)
+                {
+                    Send(JsonConvert.SerializeObject(intersystem.Database.State));
+                }
             }
             catch (Exception ex)
             {

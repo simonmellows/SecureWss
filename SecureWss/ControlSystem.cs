@@ -26,7 +26,7 @@ namespace SecureWss
     {
         public const int HttpPort = 42080;
         public const int HttpsPort = 42081;
-        public const string RootCertName = "RootCA";
+        public const string RootCertName = "rootCert";
         public const bool EnableDebugging = true;
     }
 
@@ -41,10 +41,13 @@ namespace SecureWss
         private Dictionary<string, ConsoleCommand> _consoleCommands;
         private Server _websocketServer;
         private Intersystem _intersystemWebsocketServer;
-        private const string _certificateName = "selfCres";
+        private const string _certificateName = "clientCert";
         private const string _certificatePassword = "cres12345";
         public static ControlSystem ThisControlSystem;
         public static SystemConfig MySystem;
+        /// <summary>
+        /// Database for this program
+        /// </summary>
         public static Database Database = new Database();
 
         /// <summary>
@@ -131,7 +134,7 @@ namespace SecureWss
                 Task.Run(() =>
                 {
                     Debug.Print(DebugLevel.Debug, $"Deserializing JSON...");
-                    var json = File.ReadAllText(@"\user/config/system.json");
+                    var json = File.ReadAllText(@"\user/html/system.json");
                     if (json == null)
                     {
                         Debug.Print(DebugLevel.Error, $"No config.json file found");
@@ -155,11 +158,23 @@ namespace SecureWss
                         }
                     }
                 });
+
+                Database.OnStateChange += Database_OnStateChange;
             }
             catch (Exception e)
             {
                 ErrorLog.Error($"Error in InitializeSystem: {e.Message}");
             }
+        }
+
+        /// <summary>
+        /// Event handler to broadcast data to the user interfaces when this system's database state changes
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void Database_OnStateChange(object sender, StateChangeEventArgs e)
+        {
+            UIService.BroadcastData(JsonConvert.SerializeObject(e.Data));
         }
 
         private void ConsoleCommandProcessor(string arg)
@@ -397,7 +412,6 @@ namespace SecureWss
                     //Unsubscribe to all System Monitor events
                     break;
             }
-
         }
 
         /// <summary>
