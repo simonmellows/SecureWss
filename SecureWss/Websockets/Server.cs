@@ -124,7 +124,6 @@ namespace SecureWss.Websockets
             }
         }
 
-        //public void Start(int httpPort, int httpsPort, string certPath = "", string certPassword = "", string rootPath = @"\html")
         public void Start()
         {
             try
@@ -293,152 +292,213 @@ namespace SecureWss.Websockets
 
     }
 
-    /// <summary>
-    /// Crestron Websocket service for message transmission
-    /// </summary>
+    // Crestron Websocket service for message transmission
     public class UIService : WebSocketBehavior
     {
+        // ===================================
+        // Static Members
+        // ===================================
+
+        // List of connected clients.
+        public static List<UIService> Clients { get; } = new List<UIService>();
+
+        // Locks
+        private static readonly object _clientsLock = new object();
+        private static readonly object _broadcastLock = new object();
+
+        // ===================================
+        // Instance Members
+        // ===================================
+
+        // Optional IP ID to associate with a user interface instance.
         public uint IpId { get; set; }
 
-        // Bool value to get whether there is a compatible registered user interface 
+        // Gets whether there is a compatible registered user interface.
         private bool RegisteredWithInterface => IpId > 0 && ControlSystem.MySystem?.UserInterfaces?.Find(u => u.IpId == IpId) != null;
 
-        // Gets the registered user interface that corresponds with this Crestron Service instance
+        // Gets the registered user interface that corresponds with this Crestron Service instance.
         public UserInterface RegisteredInterface => RegisteredWithInterface ? ControlSystem.MySystem?.UserInterfaces?.Find(u => u.IpId == IpId) : null;
 
-        public static List<UIService> Clients = new List<UIService>();
+        // ===================================
+        // Constructors
+        // ===================================
 
-        public static void BroadcastData(string data)
-        {
-            try
-            {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, "Broadcasting data to all clients.");
-                foreach (var client in Clients)
-                {
-                    client.Send(data);
-                }
-            }
-            catch (Exception ex)
-            {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Error broadcasting to clients: {ex.Message}");
-                ErrorLog.Error($"Error broadcasting to clients: {ex.Message}");
-            }
-        }
-
+        // Initializes a new instance of the UIService class.
         public UIService()
         {
             try
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, "Crestron service created");
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.WebSocket, "Crestron service created");
+                }
             }
             catch (Exception ex)
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Error, "UIService.Constructor error {0}", ex.Message);
-                ErrorLog.Error("UIService.Constructor error {0}", ex.Message);
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.Error, $"UIService.Constructor error {ex.Message}");
+                }
+                ErrorLog.Error($"UIService.Constructor error {ex.Message}");
             }
         }
 
+        // ===================================
+        // Static Methods
+        // ===================================
+
+        // Broadcasts data to all connected clients.
+        public static void BroadcastData(string data)
+        {
+            lock (_broadcastLock)
+            {
+                try
+                {
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print(DebugLevel.WebSocket, "Broadcasting data to all clients.");
+                    }
+                    foreach (var client in Clients)
+                    {
+                        client.Send(data);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print(DebugLevel.WebSocket, $"Error broadcasting to clients: {ex.Message}");
+                    }
+                    ErrorLog.Error($"Error broadcasting to clients: {ex.Message}");
+                }
+            }
+        }
+
+        // ===================================
+        // Instance Methods
+        // ===================================
+
+        // Handles the WebSocket connection opening event.
         protected override void OnOpen()
         {
             try
             {
                 base.OnOpen();
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"New user interface with ID {ID} connected from IP address: {Context.UserEndPoint.Address}");
-                Clients.Add(this);
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Client {ID} added.");
-                // Send this program's database state
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.WebSocket, $"New user interface with ID {ID} connected from IP address: {Context.UserEndPoint.Address}");
+                }
+                lock (_clientsLock)
+                {
+                    Clients.Add(this);
+                }
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.WebSocket, $"Client {ID} added.");
+                }
                 Send(JsonConvert.SerializeObject(ControlSystem.Database.State));
-                // Iterate through all intersystem database states and send those
-                foreach(IntersystemService intersystem in IntersystemService.Intersystems)
+                foreach (var intersystem in IntersystemService.Intersystems)
                 {
                     Send(JsonConvert.SerializeObject(intersystem.Database.State));
                 }
             }
             catch (Exception ex)
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Error, "UIService.OnOpen error {0}", ex.Message);
-                ErrorLog.Error("UIService.OnOpen error {0}", ex.Message);
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.Error, $"UIService.OnOpen error {ex.Message}");
+                }
+                ErrorLog.Error($"UIService.OnOpen error {ex.Message}");
             }
         }
+
+        // Handles incoming messages from the WebSocket.
         protected override void OnMessage(MessageEventArgs e)
         {
             try
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"UIService Received {e.Data}");
-                JObject data = JObject.Parse(e.Data);
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.WebSocket, $"UIService Received {e.Data}");
+                }
+                var data = JObject.Parse(e.Data);
 
                 // Register the client with a user interface if an IP ID was sent
-                RegistrationToken registrationToken = JsonConvert.DeserializeObject<RegistrationToken>(e.Data);
                 if (IsRegistrationToken(data))
                 {
-                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Client registration token received.");
-                    IpId = registrationToken.IpId;
-                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"New client registered with user interface on IP ID {IpId}");
+                    IpId = Convert.ToUInt32(data["IpId"].ToString(), 16);
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print(DebugLevel.WebSocket, $"New client registered with user interface on IP ID {IpId}");
+                    }
                     return;
                 }
 
-                List<Cmdlet> cmdlets = Utility.ConvertObjectToCmdlets(data);
-                foreach (Cmdlet cmdlet in cmdlets)
+                var cmdlets = Utility.ConvertObjectToCmdlets(data);
+                foreach (var cmdlet in cmdlets)
                 {
                     IntersystemService.BroadcastData(cmdlet);
                 }
             }
             catch (Exception ex)
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Error, "WebSocket.OnMessage error {0}", ex.Message);
-                ErrorLog.Error("WebSocket.OnMessage error {0}", ex.Message);
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.Error, $"WebSocket.OnMessage error {ex.Message}");
+                }
+                ErrorLog.Error($"WebSocket.OnMessage error {ex.Message}");
             }
         }
+
+        // Handles the WebSocket connection closing event.
         protected override void OnClose(CloseEventArgs e)
         {
             try
             {
                 base.OnClose(e);
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Client Disconnected: {ID}");
-                Clients.Remove(this);
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Client {ID} removed from database");
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.WebSocket, $"Client Disconnected: {ID}");
+                }
+                lock (_clientsLock)
+                {
+                    Clients.Remove(this);
+                }
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.WebSocket, $"Client {ID} removed from database");
+                }
             }
             catch (Exception ex)
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Error, "WebSocket.OnClose error {0}", ex.Message);
-                ErrorLog.Error("WebSocket.OnClose error {0}", ex.Message);
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.Error, $"WebSocket.OnClose error {ex.Message}");
+                }
+                ErrorLog.Error($"WebSocket.OnClose error {ex.Message}");
             }
         }
+
+        // Handles WebSocket errors.
         protected override void OnError(WebSocketSharp.ErrorEventArgs e)
         {
-            if (Constants.EnableDebugging) Debug.Print(DebugLevel.Error, "WebSocket.OnError message {0}", e.Message);
-            ErrorLog.Error("WebSocket.OnError message {0}", e.Message);
+            if (Constants.EnableDebugging)
+            {
+                Debug.Print(DebugLevel.Error, $"WebSocket.OnError message {e.Message}");
+            }
+            ErrorLog.Error($"WebSocket.OnError message {e.Message}");
         }
 
-        // Messages to Client
+        // Sends a message to the client.
         public void SendMessage(string message)
         {
             Send(message);
         }
 
-        private class RegistrationToken
-        {
-            public uint IpId;
-
-            public RegistrationToken(string ipId)
-            {
-                IpId = Convert.ToUInt32(ipId, 16);
-            }
-        }
-
-        // Methods for check for special data types
+        // Checks if the provided JSON object contains a registration token.
         private bool IsRegistrationToken(JObject json)
         {
-            // Example of a simple check
             return json["IpId"] != null;
         }
     }
-
-    public class WebSocketMethod
-    {
-        public string Method { get; set; }
-        public object[] Parameters { get; set; }
-    }
-
-
 }

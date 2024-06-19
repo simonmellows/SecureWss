@@ -1,9 +1,7 @@
 ﻿using C5Debugger;
 using Newtonsoft.Json.Linq;
 using System;
-using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Linq;
 using WebSocketSharp;
 using WebSocketSharp.Server;
 using Newtonsoft.Json;
@@ -21,7 +19,10 @@ namespace SecureWss.Websockets
             Port = port;
             _webSocketServer = new WebSocketServer(Port);
             _webSocketServer.AddWebSocketService<IntersystemService>("/intersystem");
-            if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, "Intersystems WebSocket server created."); 
+            if (Constants.EnableDebugging)
+            {
+                Debug.Print(DebugLevel.Debug, "Intersystems WebSocket server created.");
+            }
         }
 
         public void Start()
@@ -38,30 +39,39 @@ namespace SecureWss.Websockets
 
     public class IntersystemService : WebSocketBehavior
     {
-        /// <summary>
-        /// Static list of all connected intersystem programs (intersystems)
-        /// </summary>
+        // Static list of all connected intersystem programs (intersystems)
         public static List<IntersystemService> Intersystems = new List<IntersystemService>();
-        /// <summary>
-        /// Database containing the state of this intersystem instance
-        /// </summary>
+
+        // Database containing the state of this intersystem instance
         public Database Database { get; set; }
+
+        // Locks
+        private readonly static object _intersystemsLock = new object();
 
         public static void BroadcastData(Cmdlet cmdlet)
         {
-            try
+            lock (_intersystemsLock)
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, "Broadcasting data to all intersystem websockets");
-
-                foreach (var intersystem in Intersystems)
+                try
                 {
-                    intersystem.Send(JsonConvert.SerializeObject(cmdlet));
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print(DebugLevel.WebSocket, "Broadcasting data to all intersystem websockets");
+                    }
+
+                    foreach (var intersystem in Intersystems)
+                    {
+                        intersystem.Send(JsonConvert.SerializeObject(cmdlet));
+                    }
                 }
-            }
-            catch(Exception ex)
-            {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Error broadcasting to intersystem websockets: {ex.Message}");
-                ErrorLog.Error($"Error broadcasting to WebSocket intersystems: {ex.Message}");
+                catch (Exception ex)
+                {
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print(DebugLevel.WebSocket, $"Error broadcasting to intersystem websockets: {ex.Message}");
+                    }
+                    ErrorLog.Error($"Error broadcasting to WebSocket intersystems: {ex.Message}");
+                }
             }
         }
        
@@ -72,11 +82,17 @@ namespace SecureWss.Websockets
         {
             try
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, "Intersystem service created");
+                if (Constants.EnableDebugging) 
+                {
+                    Debug.Print(DebugLevel.WebSocket, "Intersystem service created");
+                }
             }
             catch (Exception ex)
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Error, "IntersystemService.Constructor error {0}", ex.Message);
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.Error, "IntersystemService.Constructor error {0}", ex.Message);
+                }
                 ErrorLog.Error("IntersystemService.Constructor error {0}", ex.Message);
             }
         }
@@ -91,12 +107,6 @@ namespace SecureWss.Websockets
                 if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Added intersystem from instances.");
                 // Create new database for this intersystem
                 Database = new Database();
-                // Start listening for database state changes
-                Database.OnStateChange += Database_OnStateChange;
-
-                // bin
-                //ControlSystem.Database.InitState();
-                //BroadcastData(new Cmdlet("Request", "GetState"));
             }
             catch (Exception ex)
             {
@@ -111,28 +121,42 @@ namespace SecureWss.Websockets
             {
                 base.OnMessage(e);
 
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Intersystem message receieved {e.Data}");
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.WebSocket, $"Intersystem message receieved {e.Data}");
+                }
+
                 JObject data = JObject.Parse(e.Data);
 
                 if (Utility.IsCmdlet(data))
                 {
-                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Data received is a cmdlet {data}");
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print(DebugLevel.WebSocket, $"Data received is a cmdlet {data}");
+                    }
                 }
                 else
                 {
-                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Merging received data with state.");
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print(DebugLevel.WebSocket, $"Merging received data with state.");
+                    }
+
+                    UIService.BroadcastData(JsonConvert.SerializeObject(e.Data));
                     Database?.SubmitData(data);
                 }
             }
             catch (Exception ex)
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Error, "IntersystemService.OnMessage error {0}", ex.Message);
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.Error, "IntersystemService.OnMessage error {0}", ex.Message);
+                }
                 ErrorLog.Error("IntersystemService.OnMessage error {0}", ex.Message);
             }
         }
         protected override void OnClose(CloseEventArgs e)
         {
-        
             try
             {
                 base.OnClose(e);
@@ -140,35 +164,26 @@ namespace SecureWss.Websockets
                 // Remove this instance from the static list of systems
                 Intersystems.Remove(this);
                 if (Constants.EnableDebugging) Debug.Print(DebugLevel.WebSocket, $"Removed intersystem from instances.");
-                // Stop listening for database state changes
-                Database.OnStateChange -= Database_OnStateChange;
                 // Remove database
                 Database = null;
             }
             catch (Exception ex)
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Error, "IntersystemService.OnClose error {0}", ex.Message);
+                if (Constants.EnableDebugging) 
+                {
+                    Debug.Print(DebugLevel.Error, "IntersystemService.OnClose error {0}", ex.Message);
+                }
+
                 ErrorLog.Error("IntersystemService.OnClose error {0}", ex.Message);
             }
         }
         protected override void OnError(WebSocketSharp.ErrorEventArgs e)
         {
-            if (Constants.EnableDebugging) Debug.Print(DebugLevel.Error, "IntersystemService.OnError message {0}", e.Message);
-            ErrorLog.Error("IntersystemService.OnError message {0}", e.Message);
-        }
-
-        /// <summary>
-        /// Event handler to broadcast data to the user interfaces when the instance's database state changes
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private readonly object _stateChangeLock = new object();
-        private void Database_OnStateChange(object sender, StateChangeEventArgs e)
-        {
-            lock (_stateChangeLock)
+            if (Constants.EnableDebugging)
             {
-                UIService.BroadcastData(JsonConvert.SerializeObject(e.Data));
+                Debug.Print(DebugLevel.Error, "IntersystemService.OnError message {0}", e.Message);
             }
+            ErrorLog.Error("IntersystemService.OnError message {0}", e.Message);
         }
     }
 }
