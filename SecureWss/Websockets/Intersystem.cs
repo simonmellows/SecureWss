@@ -142,7 +142,7 @@ namespace SecureWss.Websockets
                         Debug.Print(DebugLevel.WebSocket, $"Merging received data with state.");
                     }
 
-                    UIService.BroadcastData(JsonConvert.SerializeObject(e.Data));
+                    UIService.BroadcastData(JsonConvert.SerializeObject(data));
                     Database?.SubmitData(data);
                 }
             }

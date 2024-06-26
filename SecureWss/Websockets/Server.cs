@@ -194,17 +194,26 @@ namespace SecureWss.Websockets
 
             server.OnGet += (sender, e) =>
             {
-                if (e.Request.RawUrl == "/RootCertificate")
+                if (e.Request.RawUrl == "/file/rootCert" || e.Request.RawUrl == "/file/rootCert.cer")
                 {
-                    if (Constants.EnableDebugging) Debug.Print("Request for certificate received.");
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print("Request for certificate received.");
+                    }
 
                     string filePath = Path.Combine($@"\user\{Constants.RootCertName}.cer");
 
-                    if (Constants.EnableDebugging) Debug.Print($"Looking for file at {filePath}");
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print($"Looking for file at {filePath}");
+                    }
 
                     if (File.Exists(filePath))
                     {
-                        if (Constants.EnableDebugging) Debug.Print("Requested file found.");
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print("Requested file found.");
+                        }
                         byte[] fileContent = File.ReadAllBytes(filePath);
                         e.Response.StatusCode = (int)System.Net.HttpStatusCode.OK;
                         e.Response.ContentType = "application/x-x509-ca-cert";
@@ -214,7 +223,53 @@ namespace SecureWss.Websockets
                     }
                     else
                     {
-                        if (Constants.EnableDebugging) Debug.Print("Requested file NOT found.");
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print("Requested file NOT found.");
+                        }
+                        e.Response.StatusCode = (int)System.Net.HttpStatusCode.NotFound;
+                        e.Response.Close();
+                    }
+                }
+                else if(e.Request.RawUrl == "/file/system" || e.Request.RawUrl == "/file/system.json")
+                {
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print("Request for system config received.");
+                    }
+
+                    string filePath = Path.Combine($@"\user\system.json");
+
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print($"Looking for file at {filePath}");
+                    }
+
+                    if (File.Exists(filePath))
+                    {
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print("Requested file found.");
+                        }
+                        byte[] fileContent = File.ReadAllBytes(filePath);
+                        e.Response.StatusCode = (int)System.Net.HttpStatusCode.OK;
+                        e.Response.ContentType = "application/x-x509-ca-cert";
+                        e.Response.ContentLength64 = fileContent.Length;
+
+                        // Add CORS headers
+                        e.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+                        e.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+                        e.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+
+                        e.Response.OutputStream.Write(fileContent, 0, fileContent.Length);
+                        e.Response.Close();
+                    }
+                    else
+                    {
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print("Requested file NOT found.");
+                        }
                         e.Response.StatusCode = (int)System.Net.HttpStatusCode.NotFound;
                         e.Response.Close();
                     }
@@ -238,6 +293,10 @@ namespace SecureWss.Websockets
                     if (File.Exists(localPath))
                     {
                         contents = File.ReadAllBytes(localPath);
+                    }
+                    else if (File.Exists(Path.Combine(rootPath, "index.html")))
+                    {
+                        contents = File.ReadAllBytes(Path.Combine(rootPath, "index.html"));
                     }
                     else
                     {

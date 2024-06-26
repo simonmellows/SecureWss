@@ -93,7 +93,7 @@ namespace SecureWss
             var certificate = GenerateCertificate(random, subjectName, subjectKeyPair, serialNumber,
                                                   subjectAlternativeNames, issuerName, issuerKeyPair,
                                                   issuerSerialNumber, isCertificateAuthority,
-                                                  usages, 30);
+                                                  usages, 50);
             return ConvertCertificate(certificate, subjectKeyPair, random);
         }
 
@@ -435,10 +435,16 @@ namespace SecureWss
                 if (!File.Exists($"{serverCertPath}.pfx"))
                 {
                     // Create the server certificate signed by the root certificate
-                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Creating new server certificate and signing with root certificate.");
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print(DebugLevel.Debug, $"Creating new server certificate and signing with root certificate.");
+                    }
                     var serverCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
                     WriteCertificate(serverCert, outputDirectory, serverCertName);
-                    if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"New server certificate created.");
+                    if (Constants.EnableDebugging)
+                    {
+                        Debug.Print(DebugLevel.Debug, $"New server certificate created.");
+                    }
 
                     // Restart the web server if it's running
                     if (_websocketServer.HttpsIsRunning)
@@ -447,7 +453,10 @@ namespace SecureWss
                     }
                     else
                     {
-                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Web server is not running.");
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print(DebugLevel.Debug, $"Web server is not running.");
+                        }
                     }
                 }
                 // Otherwise check its date
@@ -457,11 +466,20 @@ namespace SecureWss
                     // If the certificate is out of date
                     if (serverCert.NotAfter < DateTime.Now)
                     {
-                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Certificate '{serverCertPath}.pfx' has expired. Expiry date: {serverCert.NotAfter}");
-                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Creating new server certificate and signing with root certificate.");
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print(DebugLevel.Debug, $"Certificate '{serverCertPath}.pfx' has expired. Expiry date: {serverCert.NotAfter}");
+                        }
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print(DebugLevel.Debug, $"Creating new server certificate and signing with root certificate.");
+                        }
                         var newServerCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
                         WriteCertificate(newServerCert, outputDirectory, serverCertName);
-                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"New server certificate created.");
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print(DebugLevel.Debug, $"New server certificate created.");
+                        }
 
                         // Restart the web server if it's running
                         if (_websocketServer.HttpsIsRunning)
@@ -470,17 +488,26 @@ namespace SecureWss
                         }
                         else
                         {
-                            if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Web server is not running.");
+                            if (Constants.EnableDebugging)
+                            {
+                                Debug.Print(DebugLevel.Debug, $"Web server is not running.");
+                            }
                         }
                     }
                     // Otherwise if it's within 3 days of expiry
-                    else if (serverCert.NotAfter < DateTime.Now.AddMinutes(3))
+                    else if (serverCert.NotAfter < DateTime.Now.AddDays(3))
                     {
-                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Certificate '{serverCertPath}.pfx' expires within 3 days. Expiry date: {serverCert.NotAfter}");
-                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Creating new server certificate and signing with root certificate.");
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print(DebugLevel.Debug, $"Certificate '{serverCertPath}.pfx' expires within 3 days. Expiry date: {serverCert.NotAfter}");
+                            Debug.Print(DebugLevel.Debug, $"Creating new server certificate and signing with root certificate.");
+                        }
                         var newServerCert = IssueCertificate(subjectName, RootCert, subjectAlternativeNames, new[] { KeyPurposeID.IdKPServerAuth, KeyPurposeID.IdKPClientAuth });
                         WriteCertificate(newServerCert, outputDirectory, serverCertName);
-                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"New server certificate created.");
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print(DebugLevel.Debug, $"New server certificate created.");
+                        }
 
                         // Restart the web server if it's running
                         if (_websocketServer.HttpsIsRunning)
@@ -489,13 +516,19 @@ namespace SecureWss
                         }
                         else
                         {
-                            if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Web server is not running.");
+                            if (Constants.EnableDebugging)
+                            {
+                                Debug.Print(DebugLevel.Debug, $"Web server is not running.");
+                            }
                         }
                     }
                     // Otherwise if its valid
                     else
                     {
-                        if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Certificate '{serverCertPath}' is valid. Expiry date: {serverCert.NotAfter}");
+                        if (Constants.EnableDebugging)
+                        {
+                            Debug.Print(DebugLevel.Debug, $"Certificate '{serverCertPath}' is valid. Expiry date: {serverCert.NotAfter}");
+                        }
                     }
                 }
                 Busy = false;
@@ -516,13 +549,19 @@ namespace SecureWss
         {
             if (!Busy)
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Check certificates method callback called.");
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.Debug, $"Check certificates method callback called.");
+                }
                 CreateAndWriteCertificates(SubjectName, SubjectAlternativeNames, OutputDirectory, ServerCertName, WebsocketServer);
 
             }
             else
             {
-                if (Constants.EnableDebugging) Debug.Print(DebugLevel.Debug, $"Bouncy is busy...");
+                if (Constants.EnableDebugging)
+                {
+                    Debug.Print(DebugLevel.Debug, $"Bouncy is busy...");
+                }
             }
         }
     }
