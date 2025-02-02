@@ -218,6 +218,12 @@ namespace SecureWss.Websockets
                         e.Response.StatusCode = (int)System.Net.HttpStatusCode.OK;
                         e.Response.ContentType = "application/x-x509-ca-cert";
                         e.Response.ContentLength64 = fileContent.Length;
+
+                        // Add CORS headers
+                        e.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+                        e.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+                        e.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+
                         e.Response.OutputStream.Write(fileContent, 0, fileContent.Length);
                         e.Response.Close();
                     }

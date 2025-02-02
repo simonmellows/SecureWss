@@ -26,6 +26,7 @@ namespace SecureWss
         public SystemConfig()
         {
             Debug.Print(DebugLevel.Debug, "System config constructor called");
+            ErrorLog.Notice("DEBUG: System config constructor called");
         }
     }
 
@@ -110,6 +111,9 @@ namespace SecureWss
             this.Label = Label;
             this.IpId = !String.IsNullOrEmpty(IpId) ? Convert.ToUInt32(IpId, 16) : 0;
 
+            ErrorLog.Notice("DEBUG: User interface instantiated!");
+            
+
             if (this.IpId > 2)
             {
                 switch (this.Type)
@@ -138,42 +142,42 @@ namespace SecureWss
                         Debug.Print(DebugLevel.Debug, $"Instantiating TSW-570 on ID: {this.IpId}");
                         this.Instance = new Tsw570(this.IpId, ControlSystem.ThisControlSystem);
                         break;
+                    case "Xpanel":
+                        Debug.Print(DebugLevel.Debug, $"Instantiating Xpanel on ID: {this.IpId}");
+                        this.Instance = new XpanelForHtml5(this.IpId, ControlSystem.ThisControlSystem);
+                        break;                    
                 }
                 if (this.Instance != null)
                 {
                     try
-                    {
-                        Debug.Print(DebugLevel.Debug, $"Creating delegate for instance: {this.Instance.GetType()}");
-                        // Get VOIP extender property info
-                        var voipExtenders = this.Instance
-                            .GetType()
-                            .GetProperties().First(p => p.Name == "ExtenderVoipReservedSigs")
-                            .GetValue(this.Instance);
-                        // Use VOIP Extenders
-                        ReflectionHelper.InvokeMethod(voipExtenders, "Use");
+                    {                   
+                        if(this.Type != "Xpanel")
+                        {
+                            // Set up event handler for VOIP extenders
+                            ReflectionHelper.SetupEventHandler(
+                                this,
+                                Instance.GetType().GetProperties().First(p => p.Name == "ExtenderVoipReservedSigs")?.GetValue(Instance),
+                                "DeviceExtenderSigChange",
+                                typeof(UserInterface),
+                                "ExtenderVoipReservedSigs_DeviceExtenderSigChange"
+                            );
+                        }
 
-                        // Get event info
-                        EventInfo e = voipExtenders
-                            .GetType()
-                            .GetEvent("DeviceExtenderSigChange");
-                        Debug.Print(DebugLevel.Debug, $"VOIP extender event info: {e}");
+                        ReflectionHelper.SetupEventHandler(
+                            this,
+                            Instance,
+                            "OnlineStatusChange",          
+                            typeof(UserInterface),             
+                            "OnlineStatusChange"
+                        );
 
-                        // Get method info
-                        MethodInfo m = typeof(UserInterface)
-                            .GetMethod("ExtenderVoipReservedSigs_DeviceExtenderSigChange");
-                        Debug.Print(DebugLevel.Debug, $"VOIP extender method info: {m}");
-
-                        // Create delegate
-                        Delegate d = Delegate.CreateDelegate(e.EventHandlerType, this, m);
-                        Debug.Print(DebugLevel.Debug, $"Delegate created for: {d.Target} with method: {d.Method}");
-
-                        // Attach event handler to event
-                        e.AddEventHandler(voipExtenders, d);
-                        Debug.Print(DebugLevel.Debug, $"Event handler set up for VOIP on panel ID: {this.Id}");
 
                         // Register user interface
                         ReflectionHelper.InvokeMethod(this.Instance, "Register");
+
                         Debug.Print(DebugLevel.Debug, $"Touch panel registered.");
+
+
                     }
                     catch (Exception ex)
                     {
@@ -182,7 +186,67 @@ namespace SecureWss
                     }
                 }
             }
-        }  
+        }
+
+        // Event handler to respond to when the user interface connects
+        public void OnlineStatusChange(GenericBase currentDevice, OnlineOfflineEventArgs args)
+        {
+            Debug.Print(DebugLevel.Debug, $"Ethernet reserved join triggered on touch panel with IP ID {this.IpId}");
+            Debug.Print(DebugLevel.Debug, $"args.DeviceOnLine: {args.DeviceOnLine}. Type: {args.DeviceOnLine.GetType()}");
+
+            if (args.DeviceOnLine)
+            {
+                var stringInputPropertyInfo = Instance.GetType().GetProperty("StringInput");
+                Debug.Print(DebugLevel.Debug, $"stringInputPropertyInfo: {stringInputPropertyInfo}");
+                var stringInputProperty = stringInputPropertyInfo.GetValue(Instance);
+                Debug.Print(DebugLevel.Debug, $"stringInputProperty: {stringInputProperty}");
+                // Get the type of the collection
+                var arrayType = stringInputProperty.GetType();
+                Debug.Print(DebugLevel.Debug, $"arrayType: {arrayType}");
+
+                // Get the "Item" property (indexer)
+                PropertyInfo itemProperty = arrayType.GetProperty("Item", new[] { typeof(uint) }); // Try with `uint` or the appropriate type for the index
+                Debug.Print(DebugLevel.Debug, $"itemProperty: {itemProperty}");
+                if (itemProperty != null)
+                {
+                    // Access an element, for example at index 0
+                    uint index = 1; // Adjust based on the type and index you need
+                    var element = itemProperty.GetValue(stringInputProperty, new object[] { index });
+                    Debug.Print(DebugLevel.Debug, $"Element at index {index}: {element}");
+
+                    ReflectionHelper.SetPropertyValue(element, "StringValue", "192.168.0.49");
+
+                }
+                else
+                {
+                    Debug.Print(DebugLevel.Debug, "Indexer (Item) not found.");
+                }
+
+                /*var methods = arrayType.GetMethods();
+
+                Debug.Print(DebugLevel.Debug, $"methods: {methods}");                
+                
+                var myMethod = arrayType.GetMember("get_Item");
+
+                Debug.Print(DebugLevel.Debug, $"my method: {myMethod}");
+
+
+                
+                Type type = typeof(Crestron.SimplSharpPro.DeviceStringInputCollection);
+
+                // List all public members to identify how elements are accessed
+                foreach (var member in type.GetMembers())
+                {
+                    Debug.Print(DebugLevel.Debug, $"{member.MemberType}: {member.Name}");
+                }*/
+
+
+            }
+
+            //XpanelForHtml5 xpanelForHtml5 = new XpanelForHtml5(this.IpId, ControlSystem.ThisControlSystem);
+            //xpanelForHtml5.StringInput[1].StringValue = "Chicken";
+
+        }
 
         public void ExtenderVoipReservedSigs_DeviceExtenderSigChange(DeviceExtender currentDeviceExtender, SigEventArgs args)
         {

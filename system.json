@@ -21,9 +21,17 @@
 			"IpId": "B3"
 		},
 		{
-			"Type": "iPad",
+			"Type": "Phone",
 			"Label": "Cinema",
-			"IpId": ""
+			"IpId": "",
+			"User": "User0"
+		}
+	],
+	"Users": [
+		{
+			"Id": "User0",
+			"Label": "Guest",
+			"Password": "12345"
 		}
 	],
 	"Areas": [

@@ -140,5 +140,69 @@ namespace SecureWss
                 return Convert.ChangeType(value, type);
             }
         }
+
+
+        public static void SetupEventHandler(
+            //object instance,
+            object parent,
+            //string eventSourcePropertyName,
+            object eventSource,
+            string eventName,
+            Type handlerClassType,
+            string handlerMethodName)
+        {
+            /*Debug.Print(DebugLevel.Debug, $"Setup Event Handler: Setting event source: {eventSourcePropertyName}");
+            // Step 1: Get the event source property value
+            var eventSource = instance
+                .GetType()
+                .GetProperties().First(p => p.Name == eventSourcePropertyName)?
+                .GetValue(instance);
+
+            if (eventSource == null)
+            {
+                throw new InvalidOperationException($"Property '{eventSourcePropertyName}' not found or is null.");
+            }*/
+
+            Debug.Print(DebugLevel.Debug, $"Setup Event Handler: Invoking 'Use' method");
+            // Optional: Invoke a method on the event source if required
+            //InvokeMethod(eventSource, "Use");
+
+            // Check if the "Use" method exists
+            var useMethod = eventSource.GetType().GetMethod("Use");
+            if (useMethod != null)
+            {
+                // Invoke the method if it exists
+                useMethod.Invoke(eventSource, null);
+            }
+
+            Debug.Print(DebugLevel.Debug, $"Setup Event Handler: Setting event info: {eventName}");
+            // Step 2: Get event info from the event source
+            var eventInfo = eventSource
+                .GetType()
+                .GetEvent(eventName);
+            if (eventInfo == null)
+            {
+                throw new InvalidOperationException($"Event '{eventName}' not found on type '{eventSource.GetType().FullName}'.");
+            }
+
+            Debug.Print(DebugLevel.Debug, $"Setup Event Handler: Setting method info: {handlerMethodName}");
+            // Step 3: Get method info for the event handler
+            var methodInfo = handlerClassType.GetMethod(handlerMethodName);
+            if (methodInfo == null)
+            {
+                throw new InvalidOperationException($"Handler method '{handlerMethodName}' not found in type '{handlerClassType.FullName}'.");
+            }
+
+            Debug.Print(DebugLevel.Debug, $"Setup Event Handler: Creating event handler delegate.");
+            // Step 4: Create a delegate for the event handler
+            var handlerDelegate = Delegate.CreateDelegate(eventInfo.EventHandlerType, parent, methodInfo);
+
+            Debug.Print(DebugLevel.Debug, $"Setup Event Handler: Adding event handler to instance.");
+            // Step 5: Attach the event handler to the event
+            eventInfo.AddEventHandler(eventSource, handlerDelegate);
+
+            Debug.Print(DebugLevel.Debug, $"Event handler '{handlerMethodName}' successfully attached to '{eventName}' on '{eventSource}'.");
+        }
+
     }
 }

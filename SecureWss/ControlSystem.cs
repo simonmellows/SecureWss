@@ -45,6 +45,7 @@ namespace SecureWss
         private const string _certificatePassword = "cres12345";
         public static ControlSystem ThisControlSystem;
         public static SystemConfig MySystem;
+        public string IpAddress;
         /// <summary>
         /// Database for this program
         /// </summary>
@@ -73,6 +74,7 @@ namespace SecureWss
                 CrestronEnvironment.SystemEventHandler += new SystemEventHandler(_ControllerSystemEventHandler);
                 CrestronEnvironment.ProgramStatusEventHandler += new ProgramStatusEventHandler(_ControllerProgramEventHandler);
                 CrestronEnvironment.EthernetEventHandler += new EthernetEventHandler(_ControllerEthernetEventHandler);
+
             }
             catch (Exception e)
             {
@@ -98,6 +100,7 @@ namespace SecureWss
             try
             {
                 var ipAddress = CrestronEthernetHelper.GetEthernetParameter(CrestronEthernetHelper.ETHERNET_PARAMETER_TO_GET.GET_CURRENT_IP_ADDRESS, 0);
+                IpAddress = ipAddress;
                 // Create a secure WebSocket server on port 42081 and unsecure WebSocket server on port 42080
                 _websocketServer = new Server(Constants.HttpPort, Constants.HttpsPort, $"\\user\\{_certificateName}.pfx", _certificatePassword, @"\user\html");
                 _intersystemWebsocketServer = new Intersystem(42089);
@@ -108,6 +111,8 @@ namespace SecureWss
                 //Debug.ErrorMessage += (message) => { };  //Only use this if you want to send a message to the UI's
                 Debug.Enabled = true;
                 Debug.Levels.Insert(0, DebugLevel.All);
+
+                ErrorLog.Notice($"DEBUG: Initialize system...");
 
                 _consoleCommands = new Dictionary<string, ConsoleCommand>()
                 {
@@ -134,14 +139,16 @@ namespace SecureWss
                 Task.Run(() =>
                 {
                     Debug.Print(DebugLevel.Debug, $"Deserializing JSON...");
-                    var json = File.ReadAllText(@"\user/html/system.json");
+                    var json = File.ReadAllText(@"\user/system.json");
                     if (json == null)
                     {
                         Debug.Print(DebugLevel.Error, $"No config.json file found");
+                        ErrorLog.Notice($"DEBUG: No config.json file found");
                         throw new Exception("No config.json file found");
                     }
 
                     //var system = JsonSerializer.Deserialize<System>(json);
+                    ErrorLog.Notice($"DEBUG: Instantiate SystemConfig object...");
                     ControlSystem.MySystem = JsonConvert.DeserializeObject<SystemConfig>(json);
                     Debug.Print(DebugLevel.Debug, $"Deserialization complete.");
                     if (ControlSystem.MySystem != null)
